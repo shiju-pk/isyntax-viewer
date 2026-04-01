@@ -150,6 +150,7 @@ export class ISyntaxImageService {
     const cols = zlv.levelColumns;
     const planes = zlv.planes;
     const format = this._iSyntaxImage?.getImageFormat() || 'MONO';
+    const meta = this._dicomMetadata;
 
     const imageData = this._convertToImageData(llData, rows, cols, planes, format);
 
@@ -160,6 +161,9 @@ export class ISyntaxImageService {
       cols,
       planes,
       format,
+      rawPixelData: llData,
+      rescaleSlope: meta?.rescaleSlope,
+      rescaleIntercept: meta?.rescaleIntercept,
     };
   }
 

@@ -19,6 +19,7 @@ export default defineConfig({
       '@rendering': path.resolve(__dirname, 'src/rendering'),
       '@services': path.resolve(__dirname, 'src/services'),
       '@presentation': path.resolve(__dirname, 'src/presentation'),
+      '@tools': path.resolve(__dirname, 'src/tools'),
     },
   },
   server: {

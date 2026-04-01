@@ -26,7 +26,8 @@
       "@imaging/*": ["src/imaging/*"],
       "@rendering/*": ["src/rendering/*"],
       "@services/*": ["src/services/*"],
-      "@presentation/*": ["src/presentation/*"]
+      "@presentation/*": ["src/presentation/*"],
+      "@tools/*": ["src/tools/*"]
     }
   },
   "include": ["src"]

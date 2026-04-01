@@ -21,6 +21,9 @@ export interface DecodedImage {
   cols: number;
   planes: number;
   format: string;
+  rawPixelData?: ImageArray;
+  rescaleSlope?: number;
+  rescaleIntercept?: number;
 }
 
 export type ProgressCallback = (level: number, totalLevels: number) => void;

@@ -6,3 +6,7 @@ export { PyramidImage } from './model/PyramidImage';
 export { ISyntaxImage } from './model/ISyntaxImage';
 export { ISyntaxInvertor } from './processing/ISyntaxInverter';
 export { ISyntaxProcessor } from './processing/ISyntaxProcessor';
+
+// Tiling
+export { TileGrid, TileCache, TileManager, TileState } from './tiling';
+export type { TileCoord, Tile, TileRequest, TileGridInfo, VisibleBounds, TileFetcher, TileReadyCallback } from './tiling';

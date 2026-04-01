@@ -1,6 +1,12 @@
 import type { ICanvasController } from '../../core/interfaces';
 import type { InteractionMode, ViewportState } from '../../core/types';
 
+/**
+ * @deprecated Use `RenderingEngine` + `StackViewport` instead.
+ * This monolithic renderer is kept for backward compatibility only.
+ * See `src/rendering/engine/RenderingEngine.ts` and
+ * `src/rendering/viewports/StackViewport.ts` for the replacement.
+ */
 export function createCanvasRenderer(
   canvas: HTMLCanvasElement,
   initialImageData?: ImageData
