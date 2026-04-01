@@ -11,6 +11,7 @@ import { getStudyInfoAndImageIds, getAllImageMetadata, getSeriesImageGroups } fr
 import { Loader2 } from 'lucide-react';
 import MetadataPanel from '../../components/Viewer/MetadataPanel';
 import ResizeHandle from '../../components/Viewer/ResizeHandle';
+import ViewportOverlay from '../../components/Viewer/ViewportOverlay';
 
 export default function ViewerPage() {
   const location = useLocation();
@@ -247,23 +248,20 @@ export default function ViewerPage() {
             </div>
           )}
           <MainImage imageData={currentImage} mode={mode} onControllerReady={handleControllerReady} />
-          <div className="absolute bottom-0 left-0 right-0 px-3 py-1.5 bg-gray-900/70 backdrop-blur-sm text-xs text-gray-400 flex gap-4 flex-wrap">
-            <span>Image: {selectedIndex + 1}/{imageIds.length}</span>
-            {currentImage && <span>{currentImage.width} &times; {currentImage.height}</span>}
-            {serviceRef.current?.isInitialized && (<span>Level: {serviceRef.current.currentLevel}</span>)}
-            {(() => {
-              const meta = serviceRef.current?.dicomMetadata;
-              if (!meta) return null;
-              return (
-                <>
-                  {meta.windowWidth != null && meta.windowCenter != null && (<span>W/L: {meta.windowWidth}/{meta.windowCenter}</span>)}
-                  {meta.rescaleSlope !== 1 || meta.rescaleIntercept !== 0 ? (<span>RS: {meta.rescaleSlope} RI: {meta.rescaleIntercept}</span>) : null}
-                  {meta.pixelSpacing && (<span>PS: {meta.pixelSpacing[0].toFixed(3)}&times;{meta.pixelSpacing[1].toFixed(3)}</span>)}
-                  <span>{meta.photometricInterpretation}</span>
-                </>
-              );
+          <ViewportOverlay
+            metadata={(() => {
+              if (seriesGroups.length === 0) return null;
+              const group = seriesGroups[selectedSeriesIndex];
+              if (!group) return null;
+              const uid = group.imageIds[selectedImageIndex];
+              return uid ? metadataMap.get(uid) ?? null : null;
             })()}
-          </div>
+            studyInfo={studyInfo}
+            imageIndex={selectedIndex}
+            imageCount={imageIds.length}
+            imageWidth={currentImage?.width ?? null}
+            imageHeight={currentImage?.height ?? null}
+          />
         </div>
         {showMetadata && (
           <>
