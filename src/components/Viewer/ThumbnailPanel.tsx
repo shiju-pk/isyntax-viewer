@@ -131,7 +131,7 @@ export default function ThumbnailPanel({
 }: ThumbnailPanelProps) {
   return (
     <div
-      className="flex flex-col gap-2 p-2 overflow-y-auto min-h-0 bg-gray-900/50 shrink-0"
+      className="flex flex-wrap content-start gap-2 p-2 overflow-y-auto min-h-0 bg-gray-900/50 shrink-0"
       style={{ width }}
     >
       {seriesGroups.map((group, sIdx) => (

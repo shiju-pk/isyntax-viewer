@@ -213,7 +213,7 @@ export default function ViewerPage() {
   }, [seriesGroups, studyId, stackId, initImages, metadataMap]);
 
   const handleThumbResize = useCallback((delta: number) => {
-    setThumbWidth(prev => Math.max(100, Math.min(400, prev + delta)));
+    setThumbWidth(prev => Math.max(140, Math.min(540, prev + delta)));
   }, []);
 
   const handleMetaResize = useCallback((delta: number) => {
@@ -291,7 +291,7 @@ export default function ViewerPage() {
         <ResizeHandle side="left" onResize={handleThumbResize} />
 
         {/* Main Viewport */}
-        <div className="flex-1 flex flex-col relative bg-black">
+        <div className="flex-1 flex flex-col relative bg-black border border-gray-800">
           {/* Tool Palette */}
           <div className="absolute top-3 right-3 z-10">
             <ToolPalette
