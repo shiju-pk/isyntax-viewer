@@ -15,7 +15,19 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@core/*": ["src/core/*"],
+      "@transport/*": ["src/transport/*"],
+      "@parsers/*": ["src/parsers/*"],
+      "@codecs/*": ["src/codecs/*"],
+      "@dicom/*": ["src/dicom/*"],
+      "@imaging/*": ["src/imaging/*"],
+      "@rendering/*": ["src/rendering/*"],
+      "@services/*": ["src/services/*"],
+      "@presentation/*": ["src/presentation/*"]
+    }
   },
   "include": ["src"]
 }
