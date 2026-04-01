@@ -10,6 +10,7 @@ import { getStudyInfoAndImageIds, getAllImageMetadata, getSeriesImageGroups, typ
 import type { DicomImageMetadata, StudyInfo } from '../../lib/dicomMetadata';
 import { Loader2 } from 'lucide-react';
 import MetadataPanel from './MetadataPanel';
+import ResizeHandle from './ResizeHandle';
 
 export default function ViewerPage() {
   const location = useLocation();
@@ -29,6 +30,8 @@ export default function ViewerPage() {
   const [initImages, setInitImages] = useState<Map<string, DecodedImage>>(new Map());
   const [seriesGroups, setSeriesGroups] = useState<SeriesGroup[]>([]);
   const [showMetadata, setShowMetadata] = useState(false);
+  const [thumbWidth, setThumbWidth] = useState(148);
+  const [metaWidth, setMetaWidth] = useState(288);
   const [mode, setMode] = useState<InteractionMode>('pan');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -209,6 +212,14 @@ export default function ViewerPage() {
     }
   }, [seriesGroups, studyId, stackId, initImages, metadataMap]);
 
+  const handleThumbResize = useCallback((delta: number) => {
+    setThumbWidth(prev => Math.max(100, Math.min(400, prev + delta)));
+  }, []);
+
+  const handleMetaResize = useCallback((delta: number) => {
+    setMetaWidth(prev => Math.max(200, Math.min(500, prev + delta)));
+  }, []);
+
   const handleControllerReady = (controller: CanvasController) => {
     controllerRef.current = controller;
   };
@@ -273,8 +284,11 @@ export default function ViewerPage() {
             selectedImageIndex={selectedImageIndex}
             thumbnails={thumbnails}
             onSelect={handleThumbnailClick}
+            width={thumbWidth}
           />
         )}
+
+        <ResizeHandle side="left" onResize={handleThumbResize} />
 
         {/* Main Viewport */}
         <div className="flex-1 flex flex-col relative bg-black">
@@ -364,8 +378,10 @@ export default function ViewerPage() {
 
         {/* Metadata Panel */}
         {showMetadata && (
-          <MetadataPanel
-            studyInfo={studyInfo}
+          <>
+            <ResizeHandle side="right" onResize={handleMetaResize} />
+            <MetadataPanel
+              studyInfo={studyInfo}
             metadata={(() => {
               if (seriesGroups.length === 0) return null;
               const group = seriesGroups[selectedSeriesIndex];
@@ -380,7 +396,9 @@ export default function ViewerPage() {
               return group.imageIds[selectedImageIndex] || '';
             })()}
             onClose={() => setShowMetadata(false)}
+            width={metaWidth}
           />
+          </>
         )}
       </div>
     </div>

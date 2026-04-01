@@ -8,6 +8,7 @@ interface ThumbnailPanelProps {
   selectedImageIndex: number;
   thumbnails: Map<string, ImageData>;
   onSelect: (seriesIndex: number, imageIndex: number) => void;
+  width: number;
 }
 
 function ThumbnailCanvas({ imageData, size = 120 }: { imageData?: ImageData; size?: number }) {
@@ -84,7 +85,7 @@ function SeriesCard({
 
   return (
     <div
-      className={`rounded-lg border-2 transition-all overflow-hidden ${
+      className={`rounded-lg border-2 transition-all overflow-hidden shrink-0 ${
         isActive
           ? 'border-blue-500 shadow-lg shadow-blue-500/20'
           : 'border-transparent hover:border-gray-600'
@@ -126,9 +127,13 @@ export default function ThumbnailPanel({
   selectedImageIndex,
   thumbnails,
   onSelect,
+  width,
 }: ThumbnailPanelProps) {
   return (
-    <div className="flex flex-col gap-2 p-2 overflow-y-auto bg-gray-900/50 border-r border-gray-800 w-[148px] shrink-0">
+    <div
+      className="flex flex-col gap-2 p-2 overflow-y-auto min-h-0 bg-gray-900/50 shrink-0"
+      style={{ width }}
+    >
       {seriesGroups.map((group, sIdx) => (
         <SeriesCard
           key={group.seriesUID}

@@ -7,6 +7,7 @@ interface MetadataPanelProps {
   metadata: DicomImageMetadata | null;
   instanceUID: string;
   onClose: () => void;
+  width: number;
 }
 
 function Row({ label, value }: { label: string; value?: string | number | null }) {
@@ -32,9 +33,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function MetadataPanel({ studyInfo, metadata, instanceUID, onClose }: MetadataPanelProps) {
+export default function MetadataPanel({ studyInfo, metadata, instanceUID, onClose, width }: MetadataPanelProps) {
   return (
-    <div className="w-72 shrink-0 bg-gray-900/95 border-l border-gray-800 flex flex-col overflow-hidden">
+    <div className="shrink-0 bg-gray-900/95 flex flex-col overflow-hidden" style={{ width }}>
       <div className="flex items-center justify-between px-3 py-2 border-b border-gray-800">
         <h3 className="text-sm font-semibold text-gray-200">DICOM Metadata</h3>
         <button
