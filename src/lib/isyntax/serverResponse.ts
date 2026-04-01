@@ -4,7 +4,7 @@ enum ResponseType {
 }
 class ServerResponse {
   type: ResponseType;
-  response: Uint8Array;
+  response: Uint8Array | null;
   pixelLevel: number;
   constructor(
     responseType: ResponseType,

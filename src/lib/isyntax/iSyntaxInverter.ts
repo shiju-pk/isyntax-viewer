@@ -441,7 +441,7 @@ class ISyntaxInvertor {
   ): ZoomLevelView {
     const zlv = iSyntaxImage.getZoomLevelView(pixelLevel);
     const nextHigherResolutionPixelLevel = pixelLevel - 1;
-    let nextHighResolutionZLV: ZoomLevelView;
+    let nextHighResolutionZLV: ZoomLevelView | undefined;
     if (
       !(nextHighResolutionZLV = iSyntaxImage.getZoomLevelView(
         nextHigherResolutionPixelLevel
@@ -466,6 +466,9 @@ class ISyntaxInvertor {
     const outputSizePerPlane = outputCols * outputRows;
     const outputSizeInBytesPerPlane = outputSizePerPlane * bytesPerSample;
     const outputSizeInBytes = outputSizeInBytesPerPlane * planes;
+    if (!zlv) {
+      throw new Error(`ZoomLevelView not found for pixel level ${pixelLevel}`);
+    }
     const lCols = zlv.levelColumns;
 
     const outputImage = new ArrayBuffer(outputSizeInBytes);
@@ -473,6 +476,9 @@ class ISyntaxInvertor {
     const outputBuffer = new TypedArray(outputImage);
     const highCoefficients = zlv.getFullLevelCoefficients();
     const fullLevelLL = zlv.getFullLevelLL();
+    if (!fullLevelLL || !highCoefficients) {
+      throw new Error(`Missing coefficients for pixel level ${pixelLevel}`);
+    }
     let sum = 0;
     if (planes === 1) {
       sum = this.z5_3_synthesize(
@@ -490,7 +496,7 @@ class ISyntaxInvertor {
         iSyntaxImage.imageFrame.imageId
       );
     } else {
-      const llElementsPerPlane = lCols * zlv.levelRows;
+      const llElementsPerPlane = lCols * zlv!.levelRows;
       const coefficientsPerPlane = llElementsPerPlane * 3;
       const lLPlanarOffsetInBytes = llElementsPerPlane * bytesPerSample;
       const coefficientsPlanarOffsetInBytes =

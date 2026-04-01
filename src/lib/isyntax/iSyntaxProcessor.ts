@@ -53,6 +53,9 @@ class ISyntaxProcessor {
     let zlv;
     switch (serverResponse.type) {
       case ResponseType.InitImage: {
+        if (!serverResponse.response) {
+          throw new Error('serverResponse.response is null');
+        }
         const iir = InitImageResponseParser.parse(serverResponse.response);
         zlv = this.ProcessInitImageResponse(
           serverResponse,
@@ -62,6 +65,9 @@ class ISyntaxProcessor {
         break;
       }
       case ResponseType.GetCoefficients: {
+        if (!serverResponse.response) {
+          throw new Error('serverResponse.response is null');
+        }
         const gcr = GetCoefficientsResponseParser.parse(
           serverResponse.response
         );

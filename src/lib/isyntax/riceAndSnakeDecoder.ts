@@ -31,7 +31,7 @@ class RiceAndSnakeDecoder {
       blockIndex: number,
       colIndexOfOddRow: number,
       previousValueCopy: number,
-      checksum: number,
+      checksum: number = 0,
       planeIndex: number,
       offset: number,
       index: number;
@@ -126,6 +126,9 @@ class RiceAndSnakeDecoder {
     const defaultSamplesPerBlock = 16;
 
     offset = iir.coeffsOffset;
+    if (!iir.serverResponse) {
+      throw new Error('serverResponse is null');
+    }
     binaryReader = new DataViewBinaryReader(iir.serverResponse, offset);
 
     const dataLength = [];
@@ -153,7 +156,7 @@ class RiceAndSnakeDecoder {
         if (
           planeIndex === 0 &&
           (checksum & 0xffffffff) !==
-            (iir.levelChecksums[pixelLevel] & 0xffffffff)
+            (iir.levelChecksums![pixelLevel] & 0xffffffff)
         ) {
           throw Error('Checksum mismatch');
         }

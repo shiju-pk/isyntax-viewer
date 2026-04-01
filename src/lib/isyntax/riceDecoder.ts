@@ -82,12 +82,19 @@ class RiceDecoder {
       } while (--sampleCount);
     }
 
+    const iir = iSyntaxImage.getIIR();
+    if (!iir) {
+      throw new Error('InitImageResponse is null');
+    }
     const checkCoderCode =
-      iSyntaxImage.getIIR().version >= ISyntaxImage.STENTOR_DTSIMAGE_VERSION4_0;
+      iir.version >= ISyntaxImage.STENTOR_DTSIMAGE_VERSION4_0;
     const buffers = zlv.getBuffersToDecode(3);
     const decodedBufferArray = buffers.buffersToDecode;
     const outputBuffer = buffers.resultBuffer;
 
+    if (!gcr.serverResponse) {
+      throw new Error('serverResponse is null');
+    }
     const binaryReader = new DataViewBinaryReader(
       gcr.serverResponse,
       gcr.coefficientsOffset
@@ -100,8 +107,8 @@ class RiceDecoder {
     }
 
     partitionSize = this.GetPartitionDimension(
-      iSyntaxImage.getIIR().rows,
-      iSyntaxImage.getIIR().cols
+      iir.rows,
+      iir.cols
     );
     partitionSize_1 = partitionSize - 1;
     numRowPartitions = ((rows + partitionSize_1) / partitionSize) >> 0;

@@ -3,7 +3,7 @@ import { ImageHelper } from './imageHelper';
 import type { IImageFrame } from './types';
 import type { ImageArray } from './codecConstants';
 class PyramidImage {
-  private _zoomLevelViews: ZoomLevelView[];
+  private _zoomLevelViews: (ZoomLevelView | null)[];
   lowestPixelLevel: number;
   bytesPerPixel: number;
   stickyPixelLevel: number;
@@ -41,7 +41,7 @@ class PyramidImage {
     return ImageHelper.findDimension(level, imageWidth, imageHeight);
   }
   getZoomLevelView(pixelLevel: number): ZoomLevelView | undefined {
-    return this._zoomLevelViews[pixelLevel];
+    return this._zoomLevelViews[pixelLevel] ?? undefined;
   }
 
   hasZoomLevelView(pixelLevel: number): boolean {
@@ -74,12 +74,14 @@ class PyramidImage {
     return level;
   }
   getBestZoomLevelViewAvailable(): ZoomLevelView | undefined {
-    let bestZLV;
+    let bestZLV: ZoomLevelView | undefined;
     const lowestPixelLevel = this.lowestPixelLevel;
     const zoomLevelViews = this._zoomLevelViews;
 
     for (let index = 0; index <= lowestPixelLevel; ++index) {
-      if ((bestZLV = zoomLevelViews[index])) {
+      const zlv = zoomLevelViews[index];
+      if (zlv) {
+        bestZLV = zlv;
         break;
       }
     }
@@ -105,8 +107,8 @@ class PyramidImage {
           }
         });
       }
-    } catch (e) {
-      console.log(e.toString());
+    } catch (e: unknown) {
+      console.log(String(e));
     }
     return totalSize1;
   }
@@ -127,6 +129,7 @@ class PyramidImage {
 
   protected _reduceMemoryFootPrint(): void {
     const bestZLV = this.getBestZoomLevelViewAvailable();
+    if (!bestZLV) return;
     const bestPixelLevel = bestZLV.pixelLevel;
     const zoomLevelViews = this._zoomLevelViews;
     const numberOfZLV = zoomLevelViews.length;

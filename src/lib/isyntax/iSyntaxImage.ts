@@ -31,7 +31,9 @@ class ISyntaxImage extends PyramidImage {
       this.planes = 3;
     }
 
-    this.setCheckSum(iir.levelChecksums);
+    if (iir.levelChecksums) {
+      this.setCheckSum(iir.levelChecksums);
+    }
     this.lowestPixelLevel = iir.xformLevels;
   }
   getImageFormat(): string | undefined {
