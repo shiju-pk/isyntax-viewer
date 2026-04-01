@@ -172,3 +172,44 @@ export function clearStudyDocCache(studyUID?: string, stackId?: string): void {
     metadataCache.clear();
   }
 }
+
+export interface SeriesGroup {
+  seriesUID: string;
+  imageIds: string[];
+}
+
+/**
+ * Group image UIDs by their series UID using DICOM metadata.
+ * Returns an array of SeriesGroup in XML document order.
+ * Falls back to a single group if metadata is unavailable.
+ */
+export async function getSeriesImageGroups(
+  studyUID: string,
+  stackId: string,
+  imageIds: string[]
+): Promise<SeriesGroup[]> {
+  const meta = await getAllImageMetadata(studyUID, stackId);
+
+  // Build ordered groups keyed by seriesUID
+  const groupMap = new Map<string, string[]>();
+  for (const uid of imageIds) {
+    const m = meta.get(uid);
+    const seriesUID = m?.seriesUID || '_unknown';
+    let list = groupMap.get(seriesUID);
+    if (!list) {
+      list = [];
+      groupMap.set(seriesUID, list);
+    }
+    list.push(uid);
+  }
+
+  // Sort images within each series by Instance Number (0020,0013)
+  return Array.from(groupMap.entries()).map(([seriesUID, ids]) => ({
+    seriesUID,
+    imageIds: ids.sort((a, b) => {
+      const numA = meta.get(a)?.imageNumber ?? Number.MAX_SAFE_INTEGER;
+      const numB = meta.get(b)?.imageNumber ?? Number.MAX_SAFE_INTEGER;
+      return numA - numB;
+    }),
+  }));
+}

@@ -1,4 +1,4 @@
-import { Move, ZoomIn, SunMedium, RotateCcw, Download } from 'lucide-react';
+import { Move, ZoomIn, SunMedium, RotateCcw, Download, Info } from 'lucide-react';
 import type { InteractionMode } from '../../lib/canvasRenderer';
 
 interface ToolPaletteProps {
@@ -7,6 +7,8 @@ interface ToolPaletteProps {
   onReset: () => void;
   onDownload?: () => void;
   canDownload?: boolean;
+  showMetadata?: boolean;
+  onToggleMetadata?: () => void;
 }
 
 const tools: { mode: InteractionMode; icon: typeof Move; label: string }[] = [
@@ -15,7 +17,7 @@ const tools: { mode: InteractionMode; icon: typeof Move; label: string }[] = [
   { mode: 'windowLevel', icon: SunMedium, label: 'W/L' },
 ];
 
-export default function ToolPalette({ activeMode, onModeChange, onReset, onDownload, canDownload }: ToolPaletteProps) {
+export default function ToolPalette({ activeMode, onModeChange, onReset, onDownload, canDownload, showMetadata, onToggleMetadata }: ToolPaletteProps) {
   return (
     <div className="flex items-center gap-1 bg-gray-800/80 backdrop-blur-sm rounded-lg p-1">
       {tools.map(({ mode, icon: Icon, label }) => (
@@ -53,6 +55,22 @@ export default function ToolPalette({ activeMode, onModeChange, onReset, onDownl
         >
           <Download size={16} />
         </button>
+      )}
+      {onToggleMetadata && (
+        <>
+          <div className="w-px h-6 bg-gray-600 mx-1" />
+          <button
+            onClick={onToggleMetadata}
+            title="DICOM Metadata"
+            className={`p-2 rounded-md transition-colors ${
+              showMetadata
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-400 hover:text-white hover:bg-gray-700'
+            }`}
+          >
+            <Info size={16} />
+          </button>
+        </>
       )}
     </div>
   );

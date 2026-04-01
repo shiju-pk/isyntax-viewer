@@ -6,9 +6,10 @@ import MainImage from './MainImage';
 import ToolPalette from './ToolPalette';
 import { ISyntaxImageService, type DecodedImage } from '../../lib/isyntaxImageLoader';
 import type { InteractionMode, CanvasController } from '../../lib/canvasRenderer';
-import { getStudyInfoAndImageIds, getAllImageMetadata } from '../../lib/studyDocService';
+import { getStudyInfoAndImageIds, getAllImageMetadata, getSeriesImageGroups, type SeriesGroup } from '../../lib/studyDocService';
 import type { DicomImageMetadata, StudyInfo } from '../../lib/dicomMetadata';
 import { Loader2 } from 'lucide-react';
+import MetadataPanel from './MetadataPanel';
 
 export default function ViewerPage() {
   const location = useLocation();
@@ -21,9 +22,13 @@ export default function ViewerPage() {
   const [studyLoading, setStudyLoading] = useState(true);
 
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedSeriesIndex, setSelectedSeriesIndex] = useState(0);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [currentImage, setCurrentImage] = useState<ImageData | null>(null);
-  const [thumbnails, setThumbnails] = useState<Map<number, ImageData>>(new Map());
-  const [initImages, setInitImages] = useState<Map<number, DecodedImage>>(new Map());
+  const [thumbnails, setThumbnails] = useState<Map<string, ImageData>>(new Map());
+  const [initImages, setInitImages] = useState<Map<string, DecodedImage>>(new Map());
+  const [seriesGroups, setSeriesGroups] = useState<SeriesGroup[]>([]);
+  const [showMetadata, setShowMetadata] = useState(false);
   const [mode, setMode] = useState<InteractionMode>('pan');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +38,7 @@ export default function ViewerPage() {
 
   const controllerRef = useRef<CanvasController | null>(null);
   const serviceRef = useRef<ISyntaxImageService | null>(null);
-  const servicesRef = useRef<Map<number, ISyntaxImageService>>(new Map());
+  const servicesRef = useRef<Map<string, ISyntaxImageService>>(new Map());
 
   // Phase 1: Fetch StudyDoc to get imageIds and study info
   useEffect(() => {
@@ -63,7 +68,7 @@ export default function ViewerPage() {
     if (imageIds.length === 0 || !studyId || !stackId) return;
     let cancelled = false;
 
-    // Fetch DICOM metadata (non-blocking, already cached from phase 1)
+    // Fetch DICOM metadata and compute series groups
     getAllImageMetadata(studyId, stackId)
       .then((meta) => {
         if (!cancelled) setMetadataMap(meta);
@@ -72,25 +77,37 @@ export default function ViewerPage() {
         console.warn('Failed to fetch metadata, using defaults:', err);
       });
 
+    getSeriesImageGroups(studyId, stackId, imageIds)
+      .then((groups) => {
+        if (!cancelled) setSeriesGroups(groups);
+      })
+      .catch((err) => {
+        console.warn('Failed to compute series groups:', err);
+        // Fallback: single group with all images
+        if (!cancelled) {
+          setSeriesGroups([{ seriesUID: '_all', imageIds }]);
+        }
+      });
+
     // Fire InitImage for all imageIds to populate thumbnails
-    imageIds.forEach(async (instanceUID, index) => {
+    imageIds.forEach(async (instanceUID) => {
       try {
         const service = new ISyntaxImageService(studyId, instanceUID, stackId);
-        servicesRef.current.set(index, service);
+        servicesRef.current.set(instanceUID, service);
 
         const initResult = await service.initImage();
         if (cancelled) return;
 
-        setThumbnails((prev) => new Map(prev).set(index, initResult.imageData));
-        setInitImages((prev) => new Map(prev).set(index, initResult));
+        setThumbnails((prev) => new Map(prev).set(instanceUID, initResult.imageData));
+        setInitImages((prev) => new Map(prev).set(instanceUID, initResult));
 
         // Auto-select first image into main viewport
-        if (index === 0) {
+        if (instanceUID === imageIds[0]) {
           serviceRef.current = service;
           setCurrentImage(initResult.imageData);
         }
       } catch (err) {
-        console.error(`Failed to load InitImage for index ${index}:`, err);
+        console.error(`Failed to load InitImage for ${instanceUID}:`, err);
       }
     });
 
@@ -104,8 +121,7 @@ export default function ViewerPage() {
   // When metadata arrives, attach it to all existing services
   useEffect(() => {
     if (metadataMap.size === 0 || imageIds.length === 0) return;
-    servicesRef.current.forEach((service, index) => {
-      const instanceUID = imageIds[index];
+    servicesRef.current.forEach((service, instanceUID) => {
       const meta = metadataMap.get(instanceUID);
       if (meta) {
         service.dicomMetadata = meta;
@@ -114,27 +130,40 @@ export default function ViewerPage() {
   }, [metadataMap, imageIds]);
 
   // On thumbnail click: show init image immediately, then progressively load coefficients
-  const handleThumbnailClick = useCallback(async (index: number) => {
-    if (imageIds.length === 0) return;
-    setSelectedIndex(index);
+  const handleThumbnailClick = useCallback(async (seriesIndex: number, imageIndex: number) => {
+    if (seriesGroups.length === 0) return;
+    const group = seriesGroups[seriesIndex];
+    if (!group) return;
+    const instanceUID = group.imageIds[imageIndex];
+    if (!instanceUID) return;
+
+    // Compute flat index for info bar
+    let flatIndex = 0;
+    for (let s = 0; s < seriesIndex; s++) {
+      flatIndex += seriesGroups[s].imageIds.length;
+    }
+    flatIndex += imageIndex;
+
+    setSelectedSeriesIndex(seriesIndex);
+    setSelectedImageIndex(imageIndex);
+    setSelectedIndex(flatIndex);
     setError(null);
     setProgress(null);
 
     // Show the cached init image immediately in main viewport
-    const cached = initImages.get(index);
+    const cached = initImages.get(instanceUID);
     if (cached) {
       setCurrentImage(cached.imageData);
     }
 
     // Get or create the service for this image
-    let service = servicesRef.current.get(index);
+    let service = servicesRef.current.get(instanceUID);
     if (!service) {
-      const instanceUID = imageIds[index];
       service = new ISyntaxImageService(studyId, instanceUID, stackId);
       // Attach DICOM metadata if available
       const meta = metadataMap.get(instanceUID);
       if (meta) service.dicomMetadata = meta;
-      servicesRef.current.set(index, service);
+      servicesRef.current.set(instanceUID, service);
 
       // If we don't have an init image yet, fetch it first
       if (!cached) {
@@ -142,8 +171,8 @@ export default function ViewerPage() {
         try {
           const initResult = await service.initImage();
           setCurrentImage(initResult.imageData);
-          setThumbnails((prev) => new Map(prev).set(index, initResult.imageData));
-          setInitImages((prev) => new Map(prev).set(index, initResult));
+          setThumbnails((prev) => new Map(prev).set(instanceUID, initResult.imageData));
+          setInitImages((prev) => new Map(prev).set(instanceUID, initResult));
           setLoading(false);
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'Failed to load image';
@@ -178,7 +207,7 @@ export default function ViewerPage() {
         console.error('Progressive load error:', err);
       }
     }
-  }, [imageIds, studyId, stackId, initImages, metadataMap]);
+  }, [seriesGroups, studyId, stackId, initImages, metadataMap]);
 
   const handleControllerReady = (controller: CanvasController) => {
     controllerRef.current = controller;
@@ -239,10 +268,11 @@ export default function ViewerPage() {
           </div>
         ) : (
           <ThumbnailPanel
-            imageIds={imageIds}
-            selectedIndex={selectedIndex}
+            seriesGroups={seriesGroups}
+            selectedSeriesIndex={selectedSeriesIndex}
+            selectedImageIndex={selectedImageIndex}
             thumbnails={thumbnails}
-            onThumbnailClick={handleThumbnailClick}
+            onSelect={handleThumbnailClick}
           />
         )}
 
@@ -256,6 +286,8 @@ export default function ViewerPage() {
               onReset={handleReset}
               onDownload={handleDownloadRaw}
               canDownload={currentImage !== null}
+              showMetadata={showMetadata}
+              onToggleMetadata={() => setShowMetadata(prev => !prev)}
             />
           </div>
 
@@ -329,6 +361,27 @@ export default function ViewerPage() {
             })()}
           </div>
         </div>
+
+        {/* Metadata Panel */}
+        {showMetadata && (
+          <MetadataPanel
+            studyInfo={studyInfo}
+            metadata={(() => {
+              if (seriesGroups.length === 0) return null;
+              const group = seriesGroups[selectedSeriesIndex];
+              if (!group) return null;
+              const uid = group.imageIds[selectedImageIndex];
+              return uid ? metadataMap.get(uid) ?? null : null;
+            })()}
+            instanceUID={(() => {
+              if (seriesGroups.length === 0) return '';
+              const group = seriesGroups[selectedSeriesIndex];
+              if (!group) return '';
+              return group.imageIds[selectedImageIndex] || '';
+            })()}
+            onClose={() => setShowMetadata(false)}
+          />
+        )}
       </div>
     </div>
   );
