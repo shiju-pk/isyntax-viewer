@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import TitleBar from '../TitleBar/TitleBar';
 import { getStudyInfoAndImageIds } from '../../lib/studyDocService';
-import type { StudyInfo } from '../../lib/dicomMetadata';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import studyConfigs from '../../studies.json';
 
 interface StudyConfig {
@@ -22,30 +21,32 @@ interface StudyRow {
   error?: string;
 }
 
+function makeLoadingRow(config: StudyConfig): StudyRow {
+  return {
+    studyId: config.studyId,
+    stackId: config.stackId,
+    patientName: '',
+    patientId: '',
+    modality: '',
+    imageCount: 0,
+    loading: true,
+  };
+}
+
 export default function Worklist() {
   const [rows, setRows] = useState<StudyRow[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [formStudyId, setFormStudyId] = useState('');
+  const [formStackId, setFormStackId] = useState('');
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const configs = studyConfigs as StudyConfig[];
-
-    // Initialize rows with loading state
-    setRows(
-      configs.map((c) => ({
-        studyId: c.studyId,
-        stackId: c.stackId,
-        patientName: '',
-        patientId: '',
-        modality: '',
-        imageCount: 0,
-        loading: true,
-      }))
-    );
-
-    // Fetch StudyDoc for each study to get patient info + image count
-    configs.forEach(async (config, index) => {
+  const fetchAndUpdateRow = useCallback(
+    async (config: StudyConfig, index: number) => {
       try {
-        const { studyInfo, imageIds } = await getStudyInfoAndImageIds(config.studyId, config.stackId);
+        const { studyInfo, imageIds } = await getStudyInfoAndImageIds(
+          config.studyId,
+          config.stackId
+        );
         setRows((prev) => {
           const next = [...prev];
           next[index] = {
@@ -71,8 +72,33 @@ export default function Worklist() {
           return next;
         });
       }
+    },
+    []
+  );
+
+  useEffect(() => {
+    const configs = studyConfigs as StudyConfig[];
+    const initialRows = configs.map(makeLoadingRow);
+    setRows(initialRows);
+    configs.forEach((config, index) => fetchAndUpdateRow(config, index));
+  }, [fetchAndUpdateRow]);
+
+  const handleAddStudy = () => {
+    const studyId = formStudyId.trim();
+    const stackId = formStackId.trim();
+    if (!studyId || !stackId) return;
+
+    const config: StudyConfig = { studyId, stackId };
+    setRows((prev) => {
+      const newRows = [...prev, makeLoadingRow(config)];
+      fetchAndUpdateRow(config, newRows.length - 1);
+      return newRows;
     });
-  }, []);
+
+    setFormStudyId('');
+    setFormStackId('');
+    setShowForm(false);
+  };
 
   const handleStudyClick = (row: StudyRow) => {
     if (row.loading || row.error) return;
@@ -83,7 +109,56 @@ export default function Worklist() {
     <div className="flex flex-col min-h-screen">
       <TitleBar title="iSyntax Viewer" />
       <div className="px-6 py-4">
-        <h2 className="text-xl font-semibold text-gray-200 mb-4">Study Worklist</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-200">Study Worklist</h2>
+          {!showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors"
+            >
+              <Plus size={16} />
+              Add Study
+            </button>
+          )}
+        </div>
+
+        {showForm && (
+          <div className="mb-4 flex items-end gap-3 rounded-lg border border-gray-700 bg-gray-800/50 p-4">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-gray-400 mb-1">Study ID</label>
+              <input
+                type="text"
+                value={formStudyId}
+                onChange={(e) => setFormStudyId(e.target.value)}
+                placeholder="e.g. 2.16.840.1.114151..."
+                className="w-full rounded-md border border-gray-600 bg-gray-900 px-3 py-1.5 text-sm text-gray-200 placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-gray-400 mb-1">Stack ID</label>
+              <input
+                type="text"
+                value={formStackId}
+                onChange={(e) => setFormStackId(e.target.value)}
+                placeholder="e.g. PR3"
+                className="w-full rounded-md border border-gray-600 bg-gray-900 px-3 py-1.5 text-sm text-gray-200 placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+            <button
+              onClick={handleAddStudy}
+              disabled={!formStudyId.trim() || !formStackId.trim()}
+              className="px-4 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
+            >
+              Add
+            </button>
+            <button
+              onClick={() => { setShowForm(false); setFormStudyId(''); setFormStackId(''); }}
+              className="px-4 py-1.5 rounded-md border border-gray-600 text-gray-300 hover:bg-gray-700 text-sm font-medium transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
         <div className="overflow-hidden rounded-lg border border-gray-800">
           <table className="w-full text-sm">
             <thead>
