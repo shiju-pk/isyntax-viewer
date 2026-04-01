@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head><title>StudyDoc Debug</title></head>
+<body>
+<pre id="output" style="font-size:12px;white-space:pre-wrap;"></pre>
+<script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+<script>
+const SIZEOF_INT32 = 4;
+const ZLIB_DEFLATE_DATA_OFFSET = 2;
+const ZLIB_ADDITIONAL_STR_OFFSET = 6;
+const out = document.getElementById('output');
+function log(msg) { out.textContent += msg + '\n'; console.log(msg); }
+
+function readIntLE(arr, off) {
+  return (arr[off]) | (arr[off+1]<<8) | (arr[off+2]<<16) | (arr[off+3]<<24);
+}
+
+async function test() {
+  const studyUID = '2.16.840.1.114151.2783659648455710997644573319327333996010260330';
+  const stackId = 'PR3';
+  const url = `/api/ResultsAuthority/Study/${studyUID}/iSyntaxStudy?sid=${stackId}`;
+  
+  log('Fetching: ' + url);
+  const resp = await fetch(url);
+  if (!resp.ok) { log('FETCH FAILED: ' + resp.status); return; }
+  
+  const ab = await resp.arrayBuffer();
+  const data = new Uint8Array(ab);
+  log('Total bytes: ' + data.length);
+  
+  let idx = 0;
+  const nEntities = readIntLE(data, idx); idx += 4;
+  log('Entities: ' + nEntities);
+  
+  for (let e = 0; e < nEntities && idx < data.length; e++) {
+    if (idx + 4 > data.length) break;
+    const sizeOfXmlEntity = readIntLE(data, idx); idx += 4;
+    const dtsffVersionSize = readIntLE(data, idx); idx += 4;
+    if (dtsffVersionSize > 0) idx += dtsffVersionSize;
+    if (idx >= data.length) break;
+    
+    const isCompressed = data[idx]; idx += 1;
+    const uriSize = readIntLE(data, idx); idx += 4;
+    if (uriSize < 0 || idx + uriSize > data.length) break;
+    const uri = new TextDecoder().decode(data.subarray(idx, idx + uriSize));
+    idx += uriSize;
+    
+    const allocatedSize = readIntLE(data, idx); idx += 4;
+    const CRC = readIntLE(data, idx); idx += 4;
+    const dataLength = readIntLE(data, idx); idx += 4;
+    
+    log(`\n--- Entity[${e}] ---`);
+    log(`  URI: ${uri}`);
+    log(`  sizeOfXmlEntity=${sizeOfXmlEntity}, dtsffVersionSize=${dtsffVersionSize}`);
+    log(`  isCompressed=${isCompressed}, dataLength=${dataLength}`);
+    
+    if (dataLength > 0) {
+      const uncompressedDataLength = readIntLE(data, idx);
+      log(`  uncompressedDataLength=${uncompressedDataLength}`);
+      
+      // Method 1: Single inflate of all data (Java InflaterInputStream style)
+      const compressedOffset = idx + 4 + 2; // skip uncompressedLen + zlib header
+      const compressedLen = dataLength - 6;
+      log(`  compressedOffset=${compressedOffset}, compressedLen=${compressedLen}`);
+      
+      try {
+        const slice = data.subarray(compressedOffset, compressedOffset + compressedLen);
+        const inflated = pako.inflateRaw(slice);
+        const xmlText = new TextDecoder().decode(inflated);
+        log(`  [Single inflate] ${xmlText.length} chars`);
+        log(`  Preview: ${xmlText.substring(0, 300)}`);
+        
+        // Count idelta elements
+        const parser = new DOMParser();
+        const doc = parser.parseFromString('<root>' + xmlText + '</root>', 'text/xml');
+        const ideltas = doc.getElementsByTagName('idelta');
+        const series = doc.getElementsByTagName('series');
+        const templates = doc.getElementsByTagName('template');
+        log(`  <series>: ${series.length}, <template>: ${templates.length}, <idelta>: ${ideltas.length}`);
+        
+        // Show SOPInstanceUIDs
+        const elements = doc.getElementsByTagName('element');
+        for (let i = 0; i < elements.length; i++) {
+          const tag = elements[i].getAttribute('tag');
+          const val = elements[i].getAttribute('val');
+          if (tag === '00080018') log(`    SOPInstanceUID: ${val}`);
+          if (tag === '00080016') log(`    SOPClassUID: ${val}`);
+        }
+      } catch (ex) {
+        log(`  [Single inflate] FAILED: ${ex.message}`);
+      }
+
+      // Method 2: Multi-stream inflate (reference JS style)
+      try {
+        let inflateDataPos = idx + SIZEOF_INT32 + ZLIB_DEFLATE_DATA_OFFSET;
+        let inflateDataSize = dataLength - SIZEOF_INT32 - ZLIB_DEFLATE_DATA_OFFSET;
+        let fullXml = '';
+        let streamCount = 0;
+        
+        while (inflateDataSize > 0) {
+          const slice = data.subarray(inflateDataPos, inflateDataPos + inflateDataSize);
+          if (slice.length === 0) break;
+          
+          const inflater = new pako.Inflate({ raw: true });
+          inflater.push(slice, true);
+          
+          if (inflater.err) {
+            log(`    Stream ${streamCount} error: ${inflater.msg}`);
+            break;
+          }
+          
+          if (inflater.result instanceof Uint8Array) {
+            fullXml += new TextDecoder().decode(inflater.result);
+          }
+          
+          const consumed = inflater.strm?.next_in ?? inflateDataSize;
+          log(`    Stream ${streamCount}: consumed=${consumed} bytes, result=${inflater.result?.length || 0} bytes`);
+          streamCount++;
+          
+          const advance = consumed + ZLIB_ADDITIONAL_STR_OFFSET;
+          inflateDataPos += advance;
+          inflateDataSize -= advance;
+        }
+        
+        log(`  [Multi-stream] ${streamCount} streams, total ${fullXml.length} chars`);
+        if (fullXml.length > 0) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString('<root>' + fullXml + '</root>', 'text/xml');
+          const ideltas = doc.getElementsByTagName('idelta');
+          log(`  [Multi-stream] <idelta>: ${ideltas.length}`);
+        }
+      } catch (ex) {
+        log(`  [Multi-stream] FAILED: ${ex.message}`);
+      }
+      
+      idx += dataLength;
+    }
+  }
+  
+  log('\n=== DONE ===');
+}
+test();
+</script>
+</body>
+</html>
