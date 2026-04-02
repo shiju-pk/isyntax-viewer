@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import SettingsMenu from '../Settings/SettingsMenu';
 
 interface TitleBarProps {
   title: string;
@@ -22,6 +23,7 @@ export default function TitleBar({ title, showBackButton = false, children }: Ti
       )}
       {title && <h1 className="text-lg font-semibold text-white">{title}</h1>}
       {children && <div className="flex-1 flex justify-center">{children}</div>}
+      <SettingsMenu />
     </div>
   );
 }

@@ -176,22 +176,24 @@ export default function ViewerPage() {
   const handleDownloadRaw = useCallback(() => {
     if (!currentImage || imageIds.length === 0) return;
     const instanceUID = imageIds[selectedIndex];
-    const { width, height, data } = currentImage;
-    const header = new ArrayBuffer(16);
-    const headerView = new DataView(header);
-    headerView.setUint32(0, width, true);
-    headerView.setUint32(4, height, true);
-    headerView.setUint32(8, 4, true);
-    headerView.setUint32(12, 0, true);
-    const blob = new Blob([header, data.buffer], { type: 'application/octet-stream' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${instanceUID}_${width}x${height}.raw`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const { width, height } = currentImage;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.putImageData(currentImage, 0, 0);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${instanceUID}_${width}x${height}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 'image/png');
   }, [currentImage, imageIds, selectedIndex]);
 
   if (!routeState) {
