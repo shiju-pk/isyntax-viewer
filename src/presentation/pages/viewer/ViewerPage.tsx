@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import TitleBar from '../../components/TitleBar/TitleBar';
 import ThumbnailPanel from '../../components/Viewer/ThumbnailPanel';
 import MainImage from '../../components/Viewer/MainImage';
@@ -15,10 +15,11 @@ import ViewportOverlay from '../../components/Viewer/ViewportOverlay';
 
 export default function ViewerPage() {
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const routeState = location.state as { studyId: string; stackId: string } | null;
 
   const [studyId] = useState<string>(routeState?.studyId || '');
-  const [stackId] = useState<string>(routeState?.stackId || '');
+  const [stackId] = useState<string>(searchParams.get('sid') || routeState?.stackId || '');
   const [studyInfo, setStudyInfo] = useState<StudyInfo | null>(null);
   const [imageIds, setImageIds] = useState<string[]>([]);
   const [studyLoading, setStudyLoading] = useState(true);
@@ -247,21 +248,23 @@ export default function ViewerPage() {
               )}
             </div>
           )}
-          <MainImage imageData={currentImage} mode={mode} onControllerReady={handleControllerReady} />
-          <ViewportOverlay
-            metadata={(() => {
-              if (seriesGroups.length === 0) return null;
-              const group = seriesGroups[selectedSeriesIndex];
-              if (!group) return null;
-              const uid = group.imageIds[selectedImageIndex];
-              return uid ? metadataMap.get(uid) ?? null : null;
-            })()}
-            studyInfo={studyInfo}
-            imageIndex={selectedIndex}
-            imageCount={imageIds.length}
-            imageWidth={currentImage?.width ?? null}
-            imageHeight={currentImage?.height ?? null}
-          />
+          <div className="relative flex-1 min-h-0">
+            <MainImage imageData={currentImage} mode={mode} onControllerReady={handleControllerReady} />
+            <ViewportOverlay
+              metadata={(() => {
+                if (seriesGroups.length === 0) return null;
+                const group = seriesGroups[selectedSeriesIndex];
+                if (!group) return null;
+                const uid = group.imageIds[selectedImageIndex];
+                return uid ? metadataMap.get(uid) ?? null : null;
+              })()}
+              studyInfo={studyInfo}
+              imageIndex={selectedIndex}
+              imageCount={imageIds.length}
+              imageWidth={currentImage?.width ?? null}
+              imageHeight={currentImage?.height ?? null}
+            />
+          </div>
         </div>
         {showMetadata && (
           <>

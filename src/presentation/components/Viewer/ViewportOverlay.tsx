@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { eventBus, RenderingEvents } from '../../../rendering';
 import type { DicomImageMetadata, StudyInfo } from '../../../core/types';
+import { getOrientationLabels } from '../../../dicom/orientation';
 
 interface ViewportOverlayProps {
   metadata: DicomImageMetadata | null;
@@ -50,7 +51,17 @@ export default function ViewportOverlay({
   const patientName = studyInfo?.patientName ?? '';
   const patientId = studyInfo?.patientId ?? '';
   const modality = metadata?.modality ?? studyInfo?.modality ?? '';
-  const orientationLabels = getOrientationLabels(metadata?.imageOrientationPatient);
+
+  // Use IOP from metadata, or fall back to standard axial orientation for
+  // radiology modalities that commonly imply it (CT, MR, CR, DX, etc.)
+  const AXIAL_DEFAULT = [1, 0, 0, 0, 1, 0];
+  const RADIOLOGY_MODALITIES = new Set([
+    'CT', 'MR', 'CR', 'DX', 'MG', 'XA', 'RF', 'PT', 'NM', 'US',
+  ]);
+  const iop =
+    metadata?.imageOrientationPatient ??
+    (modality && RADIOLOGY_MODALITIES.has(modality) ? AXIAL_DEFAULT : undefined);
+  const orientationLabels = getOrientationLabels(iop);
 
   return (
     <div className="absolute inset-0 pointer-events-none z-10 text-[11px] font-mono text-gray-300/90 leading-snug select-none">
@@ -112,82 +123,25 @@ export default function ViewportOverlay({
 
       {/* Orientation markers at viewport edges */}
       {orientationLabels.top && (
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 text-yellow-400/80 text-xs font-bold">
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 text-yellow-400/80 text-xl font-bold">
           {orientationLabels.top}
         </div>
       )}
       {orientationLabels.bottom && (
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-yellow-400/80 text-xs font-bold">
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-yellow-400/80 text-xl font-bold">
           {orientationLabels.bottom}
         </div>
       )}
       {orientationLabels.left && (
-        <div className="absolute left-2 top-1/2 -translate-y-1/2 text-yellow-400/80 text-xs font-bold">
+        <div className="absolute left-2 top-1/2 -translate-y-1/2 text-yellow-400/80 text-xl font-bold">
           {orientationLabels.left}
         </div>
       )}
       {orientationLabels.right && (
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 text-yellow-400/80 text-xs font-bold">
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 text-yellow-400/80 text-xl font-bold">
           {orientationLabels.right}
         </div>
       )}
     </div>
   );
-}
-
-interface OrientationLabels {
-  top: string;
-  bottom: string;
-  left: string;
-  right: string;
-}
-
-function getOrientationLabels(
-  imageOrientationPatient?: number[]
-): OrientationLabels {
-  const empty: OrientationLabels = { top: '', bottom: '', left: '', right: '' };
-  if (!imageOrientationPatient || imageOrientationPatient.length < 6) return empty;
-
-  const rowDir = imageOrientationPatient.slice(0, 3);
-  const colDir = imageOrientationPatient.slice(3, 6);
-
-  const left = majorAxisLabel(rowDir);
-  const top = majorAxisLabel(colDir);
-
-  if (!left || !top) return empty;
-
-  return {
-    left,
-    right: oppositeLabel(left),
-    top,
-    bottom: oppositeLabel(top),
-  };
-}
-
-function majorAxisLabel(direction: number[]): string {
-  const absX = Math.abs(direction[0]);
-  const absY = Math.abs(direction[1]);
-  const absZ = Math.abs(direction[2]);
-
-  const threshold = 0.5;
-
-  if (absX > absY && absX > absZ && absX > threshold) {
-    return direction[0] > 0 ? 'L' : 'R';
-  }
-  if (absY > absX && absY > absZ && absY > threshold) {
-    return direction[1] > 0 ? 'P' : 'A';
-  }
-  if (absZ > absX && absZ > absY && absZ > threshold) {
-    return direction[2] > 0 ? 'S' : 'I';
-  }
-  return '';
-}
-
-function oppositeLabel(label: string): string {
-  const map: Record<string, string> = {
-    L: 'R', R: 'L',
-    A: 'P', P: 'A',
-    S: 'I', I: 'S',
-  };
-  return map[label] ?? '';
 }

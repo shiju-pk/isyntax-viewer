@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import TitleBar from '../../components/TitleBar/TitleBar';
 import { getStudyInfoAndImageIds } from '../../../services/study/StudyService';
-import { Loader2, Plus } from 'lucide-react';
+import { Loader2, Plus, Trash2 } from 'lucide-react';
 import studyConfigs from '../../../studies.json';
+import { getAddedStudies, addStudy as persistStudy, removeStudy as unpersistStudy } from '../../../services/storage/StudyStorageService';
 
 interface StudyConfig {
   studyId: string;
@@ -19,6 +20,7 @@ interface StudyRow {
   imageCount: number;
   loading: boolean;
   error?: string;
+  isUserAdded?: boolean;
 }
 
 function makeLoadingRow(config: StudyConfig): StudyRow {
@@ -77,10 +79,18 @@ export default function Worklist() {
   );
 
   useEffect(() => {
-    const configs = studyConfigs as StudyConfig[];
-    const initialRows = configs.map(makeLoadingRow);
+    const builtInConfigs = studyConfigs as StudyConfig[];
+    const userConfigs = getAddedStudies();
+    const allConfigs = [
+      ...builtInConfigs.map((c) => ({ ...c, isUserAdded: false })),
+      ...userConfigs.map((c) => ({ ...c, isUserAdded: true })),
+    ];
+    const initialRows = allConfigs.map((c) => ({
+      ...makeLoadingRow(c),
+      isUserAdded: c.isUserAdded,
+    }));
     setRows(initialRows);
-    configs.forEach((config, index) => fetchAndUpdateRow(config, index));
+    allConfigs.forEach((config, index) => fetchAndUpdateRow(config, index));
   }, [fetchAndUpdateRow]);
 
   const handleAddStudy = () => {
@@ -89,8 +99,9 @@ export default function Worklist() {
     if (!studyId || !stackId) return;
 
     const config: StudyConfig = { studyId, stackId };
+    persistStudy(config);
     setRows((prev) => {
-      const newRows = [...prev, makeLoadingRow(config)];
+      const newRows = [...prev, { ...makeLoadingRow(config), isUserAdded: true }];
       fetchAndUpdateRow(config, newRows.length - 1);
       return newRows;
     });
@@ -100,9 +111,15 @@ export default function Worklist() {
     setShowForm(false);
   };
 
+  const handleRemoveStudy = (row: StudyRow, e: React.MouseEvent) => {
+    e.stopPropagation();
+    unpersistStudy(row.studyId, row.stackId);
+    setRows((prev) => prev.filter((r) => !(r.studyId === row.studyId && r.stackId === row.stackId && r.isUserAdded)));
+  };
+
   const handleStudyClick = (row: StudyRow) => {
     if (row.loading || row.error) return;
-    navigate(`/view/${row.studyId}`, { state: { studyId: row.studyId, stackId: row.stackId } });
+    navigate(`/view/${row.studyId}?sid=${encodeURIComponent(row.stackId)}`, { state: { studyId: row.studyId, stackId: row.stackId } });
   };
 
   return (
@@ -169,6 +186,7 @@ export default function Worklist() {
                 <th className="text-left px-4 py-3 font-medium">Stack</th>
                 <th className="text-left px-4 py-3 font-medium">Modality</th>
                 <th className="text-left px-4 py-3 font-medium">Images</th>
+                <th className="px-4 py-3 font-medium w-10"></th>
               </tr>
             </thead>
             <tbody>
@@ -204,6 +222,17 @@ export default function Worklist() {
                   </td>
                   <td className="px-4 py-3 text-gray-400">
                     {row.loading ? '...' : row.imageCount}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {row.isUserAdded && (
+                      <button
+                        onClick={(e) => handleRemoveStudy(row, e)}
+                        className="text-gray-500 hover:text-red-400 transition-colors"
+                        title="Remove study"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
