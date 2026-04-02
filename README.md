@@ -1,6 +1,6 @@
 # iSyntax Viewer
 
-A viewer for Philips iSyntax digital pathology images. Runs as a web application or as a native desktop application via [Tauri](https://tauri.app/). Connects to a Philips ResultsAuthority REST API to fetch and decode iSyntax pyramid images entirely in the browser using a native TypeScript implementation of the iSyntax codec.
+A viewer for Philips iSyntax images. Runs as a web application or as a native desktop application via [Tauri](https://tauri.app/). Connects to a Philips ResultsAuthority REST API to fetch and decode iSyntax pyramid images entirely in the browser using a native TypeScript implementation of the iSyntax codec.
 
 > **Note:** Proof of concept — demo purpose only.
 
