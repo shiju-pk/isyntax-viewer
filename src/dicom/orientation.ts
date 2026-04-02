@@ -86,15 +86,17 @@ export function getOrientationLabels(
   const rowDir = imageOrientationPatient.slice(0, 3) as Vec3;
   const colDir = imageOrientationPatient.slice(3, 6) as Vec3;
 
-  const left = getOrientationStringLPS(rowDir);
-  const top = getOrientationStringLPS(colDir);
+  // Row direction cosine points toward increasing column (right side of viewport).
+  // Column direction cosine points toward increasing row (bottom of viewport).
+  const right = getOrientationStringLPS(rowDir);
+  const bottom = getOrientationStringLPS(colDir);
 
-  if (!left || !top) return empty;
+  if (!right || !bottom) return empty;
 
   return {
-    left,
-    right: invertOrientationStringLPS(left),
-    top,
-    bottom: invertOrientationStringLPS(top),
+    left: invertOrientationStringLPS(right),
+    right,
+    top: invertOrientationStringLPS(bottom),
+    bottom,
   };
 }
