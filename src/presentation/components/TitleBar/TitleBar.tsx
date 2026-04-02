@@ -4,9 +4,10 @@ import { ArrowLeft } from 'lucide-react';
 interface TitleBarProps {
   title: string;
   showBackButton?: boolean;
+  children?: React.ReactNode;
 }
 
-export default function TitleBar({ title, showBackButton = false }: TitleBarProps) {
+export default function TitleBar({ title, showBackButton = false, children }: TitleBarProps) {
   const navigate = useNavigate();
 
   return (
@@ -19,7 +20,8 @@ export default function TitleBar({ title, showBackButton = false }: TitleBarProp
           <ArrowLeft size={18} />
         </button>
       )}
-      <h1 className="text-lg font-semibold text-white">{title}</h1>
+      {title && <h1 className="text-lg font-semibold text-white">{title}</h1>}
+      {children && <div className="flex-1 flex justify-center">{children}</div>}
     </div>
   );
 }

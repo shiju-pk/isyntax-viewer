@@ -203,11 +203,11 @@ export default function ViewerPage() {
     );
   }
 
-  const titleName = studyInfo?.patientName || 'Loading...';
-
   return (
     <div className="flex flex-col h-screen overflow-hidden">
-      <TitleBar title={`${titleName} \u2014 ${studyId}`} showBackButton />
+      <TitleBar title="" showBackButton>
+        <ToolPalette activeMode={mode} onModeChange={setMode} onReset={handleReset} onDownload={handleDownloadRaw} canDownload={currentImage !== null} showMetadata={showMetadata} onToggleMetadata={() => setShowMetadata(prev => !prev)} />
+      </TitleBar>
       <div className="flex flex-1 overflow-hidden">
         {studyLoading ? (
           <div className="flex items-center justify-center w-37 shrink-0 bg-gray-900/50 border-r border-gray-800">
@@ -218,9 +218,6 @@ export default function ViewerPage() {
         )}
         <ResizeHandle side="left" onResize={handleThumbResize} />
         <div className="flex-1 flex flex-col relative bg-black border border-gray-800">
-          <div className="absolute top-3 right-3 z-10">
-            <ToolPalette activeMode={mode} onModeChange={setMode} onReset={handleReset} onDownload={handleDownloadRaw} canDownload={currentImage !== null} showMetadata={showMetadata} onToggleMetadata={() => setShowMetadata(prev => !prev)} />
-          </div>
           {(loading || progress || error || studyLoading) && (
             <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
               {studyLoading && (
