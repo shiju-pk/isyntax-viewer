@@ -21,26 +21,51 @@ export function getOrientationStringLPS(vector: Vec3): string {
   const abs = [Math.abs(vector[0]), Math.abs(vector[1]), Math.abs(vector[2])];
 
   const MIN = 0.0001;
+  const EPS = 0.00001;
 
   for (let i = 0; i < 3; i++) {
-    if (abs[0] > MIN && abs[0] > abs[1] && abs[0] > abs[2]) {
+    if (
+      abs[0] > MIN &&
+      abs[0] > abs[1] + EPS &&
+      abs[0] > abs[2] + EPS
+    ) {
       orientation += orientationX;
       abs[0] = 0;
-    } else if (abs[1] > MIN && abs[1] > abs[0] && abs[1] > abs[2]) {
+    } else if (
+      abs[1] > MIN &&
+      abs[1] > abs[0] + EPS &&
+      abs[1] > abs[2] + EPS
+    ) {
       orientation += orientationY;
       abs[1] = 0;
-    } else if (abs[2] > MIN && abs[2] > abs[0] && abs[2] > abs[1]) {
+    } else if (
+      abs[2] > MIN &&
+      abs[2] > abs[0] + EPS &&
+      abs[2] > abs[1] + EPS
+    ) {
       orientation += orientationZ;
       abs[2] = 0;
-    } else if (abs[0] > MIN && abs[1] > MIN && abs[0] === abs[1]) {
+    } else if (
+      abs[0] > MIN &&
+      abs[1] > MIN &&
+      Math.abs(abs[0] - abs[1]) <= EPS
+    ) {
       orientation += orientationX + orientationY;
       abs[0] = 0;
       abs[1] = 0;
-    } else if (abs[0] > MIN && abs[2] > MIN && abs[0] === abs[2]) {
+    } else if (
+      abs[0] > MIN &&
+      abs[2] > MIN &&
+      Math.abs(abs[0] - abs[2]) <= EPS
+    ) {
       orientation += orientationX + orientationZ;
       abs[0] = 0;
       abs[2] = 0;
-    } else if (abs[1] > MIN && abs[2] > MIN && abs[1] === abs[2]) {
+    } else if (
+      abs[1] > MIN &&
+      abs[2] > MIN &&
+      Math.abs(abs[1] - abs[2]) <= EPS
+    ) {
       orientation += orientationY + orientationZ;
       abs[1] = 0;
       abs[2] = 0;
@@ -56,13 +81,34 @@ export function getOrientationStringLPS(vector: Vec3): string {
  * Inverts an orientation string (e.g. "L" → "R", "AP" → "PA", "H" → "F").
  */
 export function invertOrientationStringLPS(orientationString: string): string {
-  let inverted = orientationString.replace('H', 'f');
-  inverted = inverted.replace('F', 'h');
-  inverted = inverted.replace('R', 'l');
-  inverted = inverted.replace('L', 'r');
-  inverted = inverted.replace('A', 'p');
-  inverted = inverted.replace('P', 'a');
-  inverted = inverted.toUpperCase();
+  let inverted = '';
+
+  for (const ch of orientationString) {
+    switch (ch) {
+      case 'H':
+        inverted += 'F';
+        break;
+      case 'F':
+        inverted += 'H';
+        break;
+      case 'R':
+        inverted += 'L';
+        break;
+      case 'L':
+        inverted += 'R';
+        break;
+      case 'A':
+        inverted += 'P';
+        break;
+      case 'P':
+        inverted += 'A';
+        break;
+      default:
+        inverted += ch;
+        break;
+    }
+  }
+
   return inverted;
 }
 
