@@ -89,6 +89,24 @@ export default function ViewerPage() {
         if (instanceUID === imageIds[0]) {
           serviceRef.current = service;
           setCurrentImage(initResult.imageData);
+
+          // Auto-start progressive loading for the first image
+          if (service.totalLevels > 0 && !service.isFullyLoaded) {
+            setProgress({ level: 0, total: service.totalLevels });
+            service.loadAllLevels((level, total) => {
+              if (!cancelled) setProgress({ level, total });
+            }).then((finalResult) => {
+              if (!cancelled) {
+                setCurrentImage(finalResult.imageData);
+                setProgress(null);
+              }
+            }).catch((err) => {
+              if (!cancelled) {
+                setProgress(null);
+                console.error('Progressive load error for first image:', err);
+              }
+            });
+          }
         }
       } catch (err) {
         console.error(`Failed to load InitImage for ${instanceUID}:`, err);
