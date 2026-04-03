@@ -92,4 +92,12 @@ export abstract class BaseTool {
   setViewportRef(ref: ToolViewportRef | null): void {
     this.viewportRef = ref;
   }
+
+  /**
+   * Request a full render cycle (viewport + overlay) through the engine.
+   * Prefer this over viewport.render() so overlays update too.
+   */
+  protected triggerRender(): void {
+    this.viewportRef?.triggerRender();
+  }
 }

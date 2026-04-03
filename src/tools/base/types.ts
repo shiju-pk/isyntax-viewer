@@ -157,4 +157,8 @@ export interface ToolViewportRef {
   viewport: IViewport;
   element: HTMLElement;
   canvas: HTMLCanvasElement;
+  /** The currently displayed image identifier — used to scope annotations per image. */
+  imageId: string;
+  /** Trigger a full render cycle (viewport + overlays) through the engine. */
+  triggerRender: () => void;
 }

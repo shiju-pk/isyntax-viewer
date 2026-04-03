@@ -22,6 +22,7 @@ export class ProbeTool extends AnnotationTool {
       metadata: {
         toolName: ProbeTool.toolName,
         viewportId: this.viewportRef?.viewport.id ?? '',
+        imageId: this.viewportRef?.imageId,
       },
       data: {
         handles: {
@@ -50,7 +51,7 @@ export class ProbeTool extends AnnotationTool {
 
   override mouseDownCallback(evt: NormalizedPointerEvent): void {
     this.addNewAnnotation(evt);
-    this.viewportRef?.viewport.render();
+    this.triggerRender();
   }
 
   // Probe doesn't use drag

@@ -24,6 +24,7 @@ export class AngleTool extends AnnotationTool {
       metadata: {
         toolName: AngleTool.toolName,
         viewportId: this.viewportRef?.viewport.id ?? '',
+        imageId: this.viewportRef?.imageId,
       },
       data: {
         handles: {
@@ -62,7 +63,7 @@ export class AngleTool extends AnnotationTool {
     }
 
     // Check for existing handle hit
-    const annotations = annotationManager.getAnnotations(AngleTool.toolName);
+    const annotations = annotationManager.getAnnotations(AngleTool.toolName, this.viewportRef?.imageId);
     for (const ann of annotations) {
       const handleIdx = this.getHandleNearCanvasPoint(ann, evt.canvasPoint, 6);
       if (handleIdx !== -1) {
@@ -86,7 +87,7 @@ export class AngleTool extends AnnotationTool {
     annotation.data.handles.points[handleIndex] = { ...evt.worldPoint };
     annotation.invalidated = true;
     annotationManager.triggerAnnotationModified(annotation);
-    this.viewportRef?.viewport.render();
+    this.triggerRender();
   }
 
   override mouseUpCallback(evt: NormalizedPointerEvent): void {
@@ -115,7 +116,7 @@ export class AngleTool extends AnnotationTool {
     annotationManager.triggerAnnotationCompleted(annotation);
     this.editData = null;
     this._phase = 'idle';
-    this.viewportRef?.viewport.render();
+    this.triggerRender();
   }
 
   override renderAnnotation(svgHelper: SVGDrawingHelper, annotation: Annotation): void {

@@ -60,7 +60,7 @@ export class FloodFillTool extends BaseTool {
     this._floodFill(labelmap, x, y, targetValue, segmentIndex, seg);
 
     segmentationState.triggerDataModified(segId, segmentIndex);
-    this.viewportRef?.viewport.render();
+    this.triggerRender();
   }
 
   // Drag/up are no-ops for flood fill

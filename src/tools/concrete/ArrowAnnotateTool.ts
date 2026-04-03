@@ -21,6 +21,7 @@ export class ArrowAnnotateTool extends AnnotationTool {
       metadata: {
         toolName: ArrowAnnotateTool.toolName,
         viewportId: this.viewportRef?.viewport.id ?? '',
+        imageId: this.viewportRef?.imageId,
       },
       data: {
         handles: {
@@ -50,7 +51,7 @@ export class ArrowAnnotateTool extends AnnotationTool {
   }
 
   override mouseDownCallback(evt: NormalizedPointerEvent): void {
-    const annotations = annotationManager.getAnnotations(ArrowAnnotateTool.toolName);
+    const annotations = annotationManager.getAnnotations(ArrowAnnotateTool.toolName, this.viewportRef?.imageId);
     for (const ann of annotations) {
       const handleIdx = this.getHandleNearCanvasPoint(ann, evt.canvasPoint, 6);
       if (handleIdx !== -1) {
@@ -72,7 +73,7 @@ export class ArrowAnnotateTool extends AnnotationTool {
     annotation.data.handles.points[handleIndex] = { ...evt.worldPoint };
     annotation.invalidated = true;
     annotationManager.triggerAnnotationModified(annotation);
-    this.viewportRef?.viewport.render();
+    this.triggerRender();
   }
 
   override mouseUpCallback(evt: NormalizedPointerEvent): void {
@@ -92,7 +93,7 @@ export class ArrowAnnotateTool extends AnnotationTool {
 
     annotationManager.triggerAnnotationCompleted(annotation);
     this.editData = null;
-    this.viewportRef?.viewport.render();
+    this.triggerRender();
   }
 
   override renderAnnotation(svgHelper: SVGDrawingHelper, annotation: Annotation): void {

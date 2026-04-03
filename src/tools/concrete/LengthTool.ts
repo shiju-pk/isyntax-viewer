@@ -23,6 +23,7 @@ export class LengthTool extends AnnotationTool {
       metadata: {
         toolName: LengthTool.toolName,
         viewportId: this.viewportRef?.viewport.id ?? '',
+        imageId: this.viewportRef?.imageId,
       },
       data: {
         handles: {
@@ -54,7 +55,7 @@ export class LengthTool extends AnnotationTool {
 
   override mouseDownCallback(evt: NormalizedPointerEvent): void {
     // Check if we hit an existing annotation handle first
-    const annotations = annotationManager.getAnnotations(LengthTool.toolName);
+    const annotations = annotationManager.getAnnotations(LengthTool.toolName, this.viewportRef?.imageId);
     for (const ann of annotations) {
       const handleIdx = this.getHandleNearCanvasPoint(ann, evt.canvasPoint, 6);
       if (handleIdx !== -1) {
@@ -81,8 +82,8 @@ export class LengthTool extends AnnotationTool {
 
     annotationManager.triggerAnnotationModified(annotation);
 
-    // Trigger re-render
-    this.viewportRef?.viewport.render();
+    // Trigger re-render (engine + overlays)
+    this.triggerRender();
   }
 
   override mouseUpCallback(evt: NormalizedPointerEvent): void {
@@ -106,7 +107,7 @@ export class LengthTool extends AnnotationTool {
     annotationManager.triggerAnnotationCompleted(annotation);
     this.editData = null;
 
-    this.viewportRef?.viewport.render();
+    this.triggerRender();
   }
 
   override renderAnnotation(svgHelper: SVGDrawingHelper, annotation: Annotation): void {

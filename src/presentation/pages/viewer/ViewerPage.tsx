@@ -248,7 +248,16 @@ export default function ViewerPage() {
             </div>
           )}
           <div className="relative flex-1 min-h-0">
-            <MainImage imageData={currentImage} mode={mode} onControllerReady={handleControllerReady} />
+            <MainImage
+              imageData={currentImage}
+              mode={mode}
+              imageId={(() => {
+                if (seriesGroups.length === 0) return undefined;
+                const group = seriesGroups[selectedSeriesIndex];
+                return group?.imageIds[selectedImageIndex];
+              })()}
+              onControllerReady={handleControllerReady}
+            />
             <ViewportOverlay
               metadata={(() => {
                 if (seriesGroups.length === 0) return null;

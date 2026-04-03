@@ -77,7 +77,7 @@ export class ScissorsTool extends BaseTool {
 
     segmentationState.triggerDataModified(segId, segmentIndex);
     this._startPoint = null;
-    this.viewportRef?.viewport.render();
+    this.triggerRender();
   }
 
   private _fillRectangle(

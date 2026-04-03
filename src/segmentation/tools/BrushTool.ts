@@ -48,7 +48,7 @@ export class BrushTool extends BaseTool {
 
     this._isPainting = true;
     this._paint(evt.worldPoint.x, evt.worldPoint.y, segId);
-    this.viewportRef?.viewport.render();
+    this.triggerRender();
   }
 
   override mouseDragCallback(evt: NormalizedPointerEvent): void {
@@ -58,7 +58,7 @@ export class BrushTool extends BaseTool {
     if (!segId) return;
 
     this._paint(evt.worldPoint.x, evt.worldPoint.y, segId);
-    this.viewportRef?.viewport.render();
+    this.triggerRender();
   }
 
   override mouseUpCallback(_evt: NormalizedPointerEvent): void {

@@ -28,6 +28,6 @@ export class NewPanTool extends BaseTool {
       camera: camera.getState(),
     });
 
-    vp.render();
+    this.triggerRender();
   }
 }

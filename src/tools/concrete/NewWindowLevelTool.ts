@@ -46,6 +46,6 @@ export class NewWindowLevelTool extends BaseTool {
       windowWidth: this._windowWidth,
     });
 
-    vp.render();
+    this.triggerRender();
   }
 }

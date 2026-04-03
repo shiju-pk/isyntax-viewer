@@ -29,7 +29,7 @@ export class NewZoomTool extends BaseTool {
       camera: camera.getState(),
     });
 
-    vp.render();
+    this.triggerRender();
   }
 
   override mouseWheelCallback(evt: NormalizedWheelEvent): void {
@@ -45,6 +45,6 @@ export class NewZoomTool extends BaseTool {
       camera: camera.getState(),
     });
 
-    vp.render();
+    this.triggerRender();
   }
 }

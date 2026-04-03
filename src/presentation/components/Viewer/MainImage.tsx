@@ -38,6 +38,8 @@ import {
 interface MainImageProps {
   imageData: ImageData | null;
   mode: InteractionMode;
+  /** Instance UID of the currently displayed image — scopes annotations per image. */
+  imageId?: string;
   onControllerReady?: (controller: ICanvasController) => void;
 }
 
@@ -79,7 +81,7 @@ const MODE_TO_TOOL_NAME: Record<InteractionMode, string> = {
   floodFill: 'FloodFill',
 };
 
-export default function MainImage({ imageData, mode, onControllerReady }: MainImageProps) {
+export default function MainImage({ imageData, mode, imageId, onControllerReady }: MainImageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<RenderingEngine | null>(null);
   const toolGroupRef = useRef<ToolGroup | null>(null);
@@ -87,6 +89,7 @@ export default function MainImage({ imageData, mode, onControllerReady }: MainIm
   const svgHelperRef = useRef<SVGDrawingHelper | null>(null);
   const labelmapRendererRef = useRef<LabelmapRenderer | null>(null);
   const contourRendererRef = useRef<ContourRenderer | null>(null);
+  const imageIdRef = useRef<string>(imageId ?? '');
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -116,6 +119,8 @@ export default function MainImage({ imageData, mode, onControllerReady }: MainIm
         viewport,
         element: viewport.element,
         canvas: viewport.canvas,
+        imageId: imageIdRef.current,
+        triggerRender: () => engine.renderViewport(VIEWPORT_ID),
       });
 
       // Activate the current mode's tool
@@ -140,8 +145,12 @@ export default function MainImage({ imageData, mode, onControllerReady }: MainIm
 
       // Render annotations and segmentations after each viewport render
       const renderOverlays = () => {
-        // Annotations (SVG)
-        const allAnnotations = annotationManager.getAllAnnotationsForImage();
+        // Clear previous SVG content before redrawing
+        svgHelper.clearAll();
+
+        // Annotations (SVG) — filtered by current imageId
+        const currentImageId = imageIdRef.current || undefined;
+        const allAnnotations = annotationManager.getAllAnnotationsForImage(currentImageId);
         for (const ann of allAnnotations) {
           const tool = toolGroup.getToolInstance(ann.metadata.toolName);
           if (tool && 'renderAnnotation' in tool) {
@@ -220,6 +229,29 @@ export default function MainImage({ imageData, mode, onControllerReady }: MainIm
       engineRef.current.renderViewport(VIEWPORT_ID);
     }
   }, [imageData]);
+
+  // Update imageId ref and viewport ref when the displayed image changes
+  useEffect(() => {
+    imageIdRef.current = imageId ?? '';
+
+    const toolGroup = toolGroupRef.current;
+    const engine = engineRef.current;
+    if (!toolGroup || !engine) return;
+
+    const viewport = engine.getViewport(VIEWPORT_ID);
+    if (viewport) {
+      toolGroup.setViewportRef({
+        viewport,
+        element: viewport.element,
+        canvas: viewport.canvas,
+        imageId: imageIdRef.current,
+        triggerRender: () => engine.renderViewport(VIEWPORT_ID),
+      });
+    }
+
+    // Clear SVG overlays when switching images — new image will re-render its own annotations
+    svgHelperRef.current?.clearAll();
+  }, [imageId]);
 
   // Update active tool when mode changes
   useEffect(() => {
