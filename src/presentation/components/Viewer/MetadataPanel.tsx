@@ -12,7 +12,7 @@ interface MetadataPanelProps {
 function Row({ label, value }: { label: string; value?: string | number | null }) {
   if (value == null || value === '') return null;
   return (
-    <tr className="border-t border-gray-800">
+    <tr className="border-t border-gray-800 even:bg-gray-800/20">
       <td className="px-3 py-1.5 text-gray-400 whitespace-nowrap">{label}</td>
       <td className="px-3 py-1.5 text-gray-200 font-mono break-all">{String(value)}</td>
     </tr>

@@ -190,11 +190,23 @@ export default function Worklist() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, index) => (
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
+                    No studies found. Click "Add Study" to get started.
+                  </td>
+                </tr>
+              )}
+              {rows.map((row, index) => {
+                const isClickable = !row.loading && !row.error;
+                return (
                 <tr
                   key={`${row.studyId}-${row.stackId}-${index}`}
                   onClick={() => handleStudyClick(row)}
-                  className={`border-t border-gray-800 transition-colors ${
+                  onKeyDown={(e) => { if (isClickable && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleStudyClick(row); } }}
+                  tabIndex={isClickable ? 0 : undefined}
+                  role={isClickable ? 'button' : undefined}
+                  className={`border-t border-gray-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset ${
                     row.loading || row.error
                       ? 'opacity-50 cursor-wait'
                       : 'hover:bg-gray-800/40 cursor-pointer'
@@ -221,21 +233,23 @@ export default function Worklist() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-gray-400">
-                    {row.loading ? '...' : row.imageCount}
+                    {row.loading ? '—' : row.imageCount}
                   </td>
                   <td className="px-4 py-3 text-center">
                     {row.isUserAdded && (
                       <button
                         onClick={(e) => handleRemoveStudy(row, e)}
-                        className="text-gray-500 hover:text-red-400 transition-colors"
+                        className="p-2 rounded-md text-gray-500 hover:text-red-400 hover:bg-gray-700/50 transition-colors"
                         title="Remove study"
+                        aria-label={`Remove study ${row.patientName || row.studyId}`}
                       >
                         <Trash2 size={14} />
                       </button>
                     )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

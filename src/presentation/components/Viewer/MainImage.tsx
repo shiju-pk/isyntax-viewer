@@ -100,6 +100,8 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady 
   const labelmapRendererRef = useRef<LabelmapRenderer | null>(null);
   const contourRendererRef = useRef<ContourRenderer | null>(null);
   const imageIdRef = useRef<string>(imageId ?? '');
+  const modeRef = useRef<InteractionMode>(mode);
+  modeRef.current = mode;
   /** Tracks the labelmap segmentation ID per imageId */
   const segIdMapRef = useRef<Map<string, string>>(new Map());
 
@@ -196,7 +198,7 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady 
             dispatcherRef.current?.updateCursor();
           }
         },
-        getMode: () => mode,
+        getMode: () => modeRef.current,
         reset: () => {
           viewport.resetCamera();
           eventBus.emit(RenderingEvents.CAMERA_MODIFIED, {
@@ -362,7 +364,10 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady 
   return (
     <div
       ref={containerRef}
-      className="w-full h-full block rounded-lg"
+      tabIndex={0}
+      role="img"
+      aria-label="Medical image viewport"
+      className="w-full h-full block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
     />
   );
 }

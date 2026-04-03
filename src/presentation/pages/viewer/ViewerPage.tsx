@@ -1,131 +1,95 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import TitleBar from '../../components/TitleBar/TitleBar';
 import ThumbnailPanel from '../../components/Viewer/ThumbnailPanel';
 import MainImage from '../../components/Viewer/MainImage';
 import ToolPalette from '../../components/Viewer/ToolPalette';
 import { ISyntaxImageService } from '../../../services/image/ISyntaxImageService';
-import type { DecodedImage, InteractionMode, DicomImageMetadata, StudyInfo, SeriesGroup } from '../../../core/types';
+import type { InteractionMode } from '../../../core/types';
 import type { ICanvasController } from '../../../core/interfaces';
-import { getStudyInfoAndImageIds, getAllImageMetadata, getSeriesImageGroups } from '../../../services/study/StudyService';
 
-import { Loader2, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown } from 'lucide-react';
+import { Loader2, X, RefreshCw } from 'lucide-react';
 import MetadataPanel from '../../components/Viewer/MetadataPanel';
 import ResizeHandle from '../../components/Viewer/ResizeHandle';
 import ViewportOverlay from '../../components/Viewer/ViewportOverlay';
+import ImageScrollbar from '../../components/Viewer/ImageScrollbar';
+import { useViewerHotkeys } from '../../hooks/useViewerHotkeys';
+import { useStudyLoader } from '../../hooks/useStudyLoader';
 
 export default function ViewerPage() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const routeState = location.state as { studyId: string; stackId: string } | null;
 
-  const [studyId] = useState<string>(routeState?.studyId || '');
-  const [stackId] = useState<string>(searchParams.get('sid') || routeState?.stackId || '');
-  const [studyInfo, setStudyInfo] = useState<StudyInfo | null>(null);
-  const [imageIds, setImageIds] = useState<string[]>([]);
-  const [studyLoading, setStudyLoading] = useState(true);
+  const studyId = routeState?.studyId || '';
+  const stackId = searchParams.get('sid') || routeState?.stackId || '';
+
+  // Study data loading (extracted hook)
+  const {
+    studyInfo, imageIds, metadataMap, seriesGroups,
+    thumbnails, setThumbnails, initImages, setInitImages,
+    studyLoading, studyError,
+    currentImage, setCurrentImage, progress, setProgress,
+    serviceRef, servicesRef,
+  } = useStudyLoader(studyId, stackId);
 
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedSeriesIndex, setSelectedSeriesIndex] = useState(0);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [currentImage, setCurrentImage] = useState<ImageData | null>(null);
-  const [thumbnails, setThumbnails] = useState<Map<string, ImageData>>(new Map());
-  const [initImages, setInitImages] = useState<Map<string, DecodedImage>>(new Map());
-  const [seriesGroups, setSeriesGroups] = useState<SeriesGroup[]>([]);
   const [showMetadata, setShowMetadata] = useState(false);
   const [thumbWidth, setThumbWidth] = useState(148);
   const [metaWidth, setMetaWidth] = useState(288);
   const [mode, setMode] = useState<InteractionMode>('pan');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState<{ level: number; total: number } | null>(null);
-
-  const [metadataMap, setMetadataMap] = useState<Map<string, DicomImageMetadata>>(new Map());
+  const [error, setError] = useState<string | null>(studyError);
+  const [progressVisible, setProgressVisible] = useState(false);
 
   const controllerRef = useRef<ICanvasController | null>(null);
-  const serviceRef = useRef<ISyntaxImageService | null>(null);
-  const servicesRef = useRef<Map<string, ISyntaxImageService>>(new Map());
 
+  // Sync study-level error into local error state
   useEffect(() => {
-    if (!studyId || !stackId) return;
-    let cancelled = false;
-    setStudyLoading(true);
-    getStudyInfoAndImageIds(studyId, stackId)
-      .then(({ studyInfo: info, imageIds: ids }) => {
-        if (cancelled) return;
-        setStudyInfo(info);
-        setImageIds(ids);
-        setStudyLoading(false);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        console.error('Failed to fetch StudyDoc:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load study');
-        setStudyLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [studyId, stackId]);
+    if (studyError) setError(studyError);
+  }, [studyError]);
 
+  // Derived values — eliminates repeated inline lookups in JSX
+  const currentInstanceUID = useMemo(() => {
+    if (seriesGroups.length === 0) return '';
+    const group = seriesGroups[selectedSeriesIndex];
+    return group?.imageIds[selectedImageIndex] ?? '';
+  }, [seriesGroups, selectedSeriesIndex, selectedImageIndex]);
+
+  const currentMetadata = useMemo(
+    () => (currentInstanceUID ? metadataMap.get(currentInstanceUID) ?? null : null),
+    [metadataMap, currentInstanceUID],
+  );
+
+  // Delay showing progress bar by 300ms to avoid flicker for fast loads
   useEffect(() => {
-    if (imageIds.length === 0 || !studyId || !stackId) return;
-    let cancelled = false;
-    getAllImageMetadata(studyId, stackId)
-      .then((meta) => { if (!cancelled) setMetadataMap(meta); })
-      .catch((err) => { console.warn('Failed to fetch metadata, using defaults:', err); });
-    getSeriesImageGroups(studyId, stackId, imageIds)
-      .then((groups) => { if (!cancelled) setSeriesGroups(groups); })
-      .catch((err) => {
-        console.warn('Failed to compute series groups:', err);
-        if (!cancelled) setSeriesGroups([{ seriesUID: '_all', imageIds }]);
-      });
-    imageIds.forEach(async (instanceUID) => {
-      try {
-        const service = new ISyntaxImageService(studyId, instanceUID, stackId);
-        servicesRef.current.set(instanceUID, service);
-        const initResult = await service.initImage();
-        if (cancelled) return;
-        setThumbnails((prev) => new Map(prev).set(instanceUID, initResult.imageData));
-        setInitImages((prev) => new Map(prev).set(instanceUID, initResult));
-        if (instanceUID === imageIds[0]) {
-          serviceRef.current = service;
-          setCurrentImage(initResult.imageData);
+    if (!progress) {
+      setProgressVisible(false);
+      return;
+    }
+    const timer = setTimeout(() => setProgressVisible(true), 300);
+    return () => clearTimeout(timer);
+  }, [progress]);
 
-          // Auto-start progressive loading for the first image
-          if (service.totalLevels > 0 && !service.isFullyLoaded) {
-            setProgress({ level: 0, total: service.totalLevels });
-            service.loadAllLevels((level, total) => {
-              if (!cancelled) setProgress({ level, total });
-            }).then((finalResult) => {
-              if (!cancelled) {
-                setCurrentImage(finalResult.imageData);
-                setProgress(null);
-              }
-            }).catch((err) => {
-              if (!cancelled) {
-                setProgress(null);
-                console.error('Progressive load error for first image:', err);
-              }
-            });
-          }
-        }
-      } catch (err) {
-        console.error(`Failed to load InitImage for ${instanceUID}:`, err);
-      }
-    });
-    return () => {
-      cancelled = true;
-      servicesRef.current.forEach((s) => s.dispose());
-      servicesRef.current.clear();
-    };
-  }, [imageIds, studyId, stackId]);
-
-  useEffect(() => {
-    if (metadataMap.size === 0 || imageIds.length === 0) return;
-    servicesRef.current.forEach((service, instanceUID) => {
-      const meta = metadataMap.get(instanceUID);
-      if (meta) service.dicomMetadata = meta;
-    });
-  }, [metadataMap, imageIds]);
+  const handleRetryLoad = useCallback(() => {
+    const service = serviceRef.current;
+    if (!service || service.isFullyLoaded) return;
+    setError(null);
+    if (service.totalLevels > 0) {
+      setProgress({ level: 0, total: service.totalLevels });
+      service.loadAllLevels((level, total) => { setProgress({ level, total }); })
+        .then((finalResult) => {
+          setCurrentImage(finalResult.imageData);
+          setProgress(null);
+        })
+        .catch((err) => {
+          setError(err instanceof Error ? err.message : 'Failed to enhance image');
+          setProgress(null);
+        });
+    }
+  }, []);
 
   const handleThumbnailClick = useCallback(async (seriesIndex: number, imageIndex: number) => {
     if (seriesGroups.length === 0) return;
@@ -227,10 +191,6 @@ export default function ViewerPage() {
     navigateImage(selectedImageIndex + delta);
   }, [mode, currentSeriesImageCount, selectedImageIndex, navigateImage]);
 
-  const handleSliderChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    navigateImage(Number(e.target.value));
-  }, [navigateImage]);
-
   const handleDownloadRaw = useCallback(() => {
     if (!currentImage || imageIds.length === 0) return;
     const instanceUID = imageIds[selectedIndex];
@@ -253,6 +213,20 @@ export default function ViewerPage() {
       URL.revokeObjectURL(url);
     }, 'image/png');
   }, [currentImage, imageIds, selectedIndex]);
+
+  // --- Keyboard shortcuts ---
+  useViewerHotkeys({
+    setMode,
+    navigateImage,
+    selectedImageIndex,
+    maxImageIndex: currentSeriesImageCount - 1,
+    onReset: handleReset,
+    onFlipHorizontal: handleFlipHorizontal,
+    onFlipVertical: handleFlipVertical,
+    onRotateRight90: handleRotateRight90,
+    onToggleMetadata: () => setShowMetadata(prev => !prev),
+    onDownload: handleDownloadRaw,
+  });
 
   if (!routeState) {
     return (
@@ -284,7 +258,7 @@ export default function ViewerPage() {
         )}
         <ResizeHandle side="left" onResize={handleThumbResize} />
         <div className="flex-1 flex flex-col relative bg-black">
-          {(loading || progress || error || studyLoading) && (
+          {(loading || (progress && progressVisible) || error || studyLoading) && (
             <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
               {studyLoading && (
                 <div className="flex items-center gap-2 bg-gray-900/80 backdrop-blur-sm px-4 py-2 rounded-lg">
@@ -298,7 +272,7 @@ export default function ViewerPage() {
                   <span className="text-sm text-gray-200">Loading image...</span>
                 </div>
               )}
-              {progress && !loading && !studyLoading && (
+              {progress && progressVisible && !loading && !studyLoading && (
                 <div className="bg-gray-900/80 backdrop-blur-sm px-5 py-3 rounded-lg">
                   <div className="text-xs text-gray-300 mb-1.5">Enhancing image resolution…</div>
                   <div className="w-56 h-2 bg-gray-700 rounded-full overflow-hidden">
@@ -308,7 +282,23 @@ export default function ViewerPage() {
                 </div>
               )}
               {error && (
-                <div className="bg-red-900/80 backdrop-blur-sm px-4 py-2 rounded-lg text-red-200 text-sm pointer-events-auto">{error}</div>
+                <div className="flex items-center gap-3 bg-red-900/80 backdrop-blur-sm px-4 py-2.5 rounded-lg text-red-200 text-sm pointer-events-auto">
+                  <span>{error}</span>
+                  <button
+                    onClick={handleRetryLoad}
+                    title="Retry"
+                    className="p-1.5 rounded-md hover:bg-red-800 text-red-300 hover:text-red-100 transition-colors"
+                  >
+                    <RefreshCw size={14} />
+                  </button>
+                  <button
+                    onClick={() => setError(null)}
+                    title="Dismiss"
+                    className="p-1.5 rounded-md hover:bg-red-800 text-red-300 hover:text-red-100 transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -317,21 +307,11 @@ export default function ViewerPage() {
               <MainImage
                 imageData={currentImage}
                 mode={mode}
-                imageId={(() => {
-                  if (seriesGroups.length === 0) return undefined;
-                  const group = seriesGroups[selectedSeriesIndex];
-                  return group?.imageIds[selectedImageIndex];
-                })()}
+                imageId={currentInstanceUID || undefined}
                 onControllerReady={handleControllerReady}
               />
               <ViewportOverlay
-                metadata={(() => {
-                  if (seriesGroups.length === 0) return null;
-                  const group = seriesGroups[selectedSeriesIndex];
-                  if (!group) return null;
-                  const uid = group.imageIds[selectedImageIndex];
-                  return uid ? metadataMap.get(uid) ?? null : null;
-                })()}
+                metadata={currentMetadata}
                 studyInfo={studyInfo}
                 imageIndex={selectedIndex}
                 imageCount={imageIds.length}
@@ -341,65 +321,11 @@ export default function ViewerPage() {
             </div>
             {/* Image position scrollbar — right side of viewport */}
             {currentSeriesImageCount > 1 && (
-              <div className="flex flex-col items-center w-8 shrink-0 bg-gray-900/60 border-l border-gray-700/50 select-none py-1 gap-0.5">
-                <button
-                  onClick={() => navigateImage(0)}
-                  disabled={selectedImageIndex === 0}
-                  title="First image"
-                  aria-label="First image"
-                  className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:hover:bg-transparent transition-colors"
-                >
-                  <ChevronsUp size={14} />
-                </button>
-                <button
-                  onClick={() => navigateImage(selectedImageIndex - 1)}
-                  disabled={selectedImageIndex === 0}
-                  title="Previous image"
-                  aria-label="Previous image"
-                  className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:hover:bg-transparent transition-colors"
-                >
-                  <ChevronUp size={14} />
-                </button>
-                <div className="flex-1 flex flex-col items-center justify-center min-h-0 w-full px-0.5">
-                  <input
-                    type="range"
-                    min={0}
-                    max={currentSeriesImageCount - 1}
-                    value={selectedImageIndex}
-                    onChange={handleSliderChange}
-                    title={`Image ${selectedImageIndex + 1} / ${currentSeriesImageCount}`}
-                    aria-label={`Image ${selectedImageIndex + 1} of ${currentSeriesImageCount}`}
-                    style={{
-                      writingMode: 'vertical-lr',
-                      height: '100%',
-                      width: '18px',
-                      accentColor: '#3b82f6',
-                      cursor: 'pointer',
-                    }}
-                  />
-                </div>
-                <button
-                  onClick={() => navigateImage(selectedImageIndex + 1)}
-                  disabled={selectedImageIndex >= currentSeriesImageCount - 1}
-                  title="Next image"
-                  aria-label="Next image"
-                  className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:hover:bg-transparent transition-colors"
-                >
-                  <ChevronDown size={14} />
-                </button>
-                <button
-                  onClick={() => navigateImage(currentSeriesImageCount - 1)}
-                  disabled={selectedImageIndex >= currentSeriesImageCount - 1}
-                  title="Last image"
-                  aria-label="Last image"
-                  className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:hover:bg-transparent transition-colors"
-                >
-                  <ChevronsDown size={14} />
-                </button>
-                <span className="text-[11px] text-gray-500 tabular-nums leading-none mt-0.5">
-                  {selectedImageIndex + 1}/{currentSeriesImageCount}
-                </span>
-              </div>
+              <ImageScrollbar
+                imageIndex={selectedImageIndex}
+                imageCount={currentSeriesImageCount}
+                onNavigate={navigateImage}
+              />
             )}
           </div>
         </div>
@@ -408,19 +334,8 @@ export default function ViewerPage() {
             <ResizeHandle side="right" onResize={handleMetaResize} />
             <MetadataPanel
               studyInfo={studyInfo}
-              metadata={(() => {
-                if (seriesGroups.length === 0) return null;
-                const group = seriesGroups[selectedSeriesIndex];
-                if (!group) return null;
-                const uid = group.imageIds[selectedImageIndex];
-                return uid ? metadataMap.get(uid) ?? null : null;
-              })()}
-              instanceUID={(() => {
-                if (seriesGroups.length === 0) return '';
-                const group = seriesGroups[selectedSeriesIndex];
-                if (!group) return '';
-                return group.imageIds[selectedImageIndex] || '';
-              })()}
+              metadata={currentMetadata}
+              instanceUID={currentInstanceUID}
               onClose={() => setShowMetadata(false)}
               width={metaWidth}
             />
