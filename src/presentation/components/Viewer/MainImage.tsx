@@ -2,6 +2,8 @@ import { useRef, useEffect } from 'react';
 import {
   RenderingEngine,
   ViewportType,
+  eventBus,
+  RenderingEvents,
 } from '../../../rendering';
 import type { IViewport } from '../../../rendering';
 import type { ICanvasController } from '../../../core/interfaces';
@@ -15,6 +17,7 @@ import {
   NewPanTool,
   NewZoomTool,
   NewWindowLevelTool,
+  RotateTool,
   LengthTool,
   AngleTool,
   EllipticalROITool,
@@ -33,6 +36,7 @@ import {
   LabelmapRenderer,
   ContourRenderer,
   segmentationState,
+  SegmentationRepresentationType,
 } from '../../../segmentation';
 
 interface MainImageProps {
@@ -50,6 +54,7 @@ const _registered = (() => {
   registerToolClass(NewPanTool);
   registerToolClass(NewZoomTool);
   registerToolClass(NewWindowLevelTool);
+  registerToolClass(RotateTool);
   registerToolClass(LengthTool);
   registerToolClass(AngleTool);
   registerToolClass(EllipticalROITool);
@@ -68,6 +73,7 @@ const MODE_TO_TOOL_NAME: Record<InteractionMode, string> = {
   pan: 'Pan',
   zoom: 'Zoom',
   windowLevel: 'WindowLevel',
+  rotate: 'Rotate',
   length: 'Length',
   angle: 'Angle',
   ellipticalROI: 'EllipticalROI',
@@ -81,6 +87,10 @@ const MODE_TO_TOOL_NAME: Record<InteractionMode, string> = {
   floodFill: 'FloodFill',
 };
 
+const SEGMENTATION_MODES: Set<InteractionMode> = new Set([
+  'brush', 'eraser', 'thresholdBrush', 'scissors', 'floodFill',
+]);
+
 export default function MainImage({ imageData, mode, imageId, onControllerReady }: MainImageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<RenderingEngine | null>(null);
@@ -90,6 +100,8 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady 
   const labelmapRendererRef = useRef<LabelmapRenderer | null>(null);
   const contourRendererRef = useRef<ContourRenderer | null>(null);
   const imageIdRef = useRef<string>(imageId ?? '');
+  /** Tracks the labelmap segmentation ID per imageId */
+  const segIdMapRef = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -187,6 +199,10 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady 
         getMode: () => mode,
         reset: () => {
           viewport.resetCamera();
+          eventBus.emit(RenderingEvents.CAMERA_MODIFIED, {
+            viewportId: viewport.id,
+            camera: viewport.getCamera().getState(),
+          });
           engine.renderViewport(VIEWPORT_ID);
         },
         getViewportState: () => {
@@ -199,6 +215,37 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady 
             windowCenter: props.windowCenter ?? 128,
             windowWidth: props.windowWidth ?? 256,
           };
+        },
+        flipHorizontal: () => {
+          const camera = viewport.getCamera();
+          camera.flipHorizontal();
+          eventBus.emit(RenderingEvents.CAMERA_MODIFIED, {
+            viewportId: viewport.id,
+            camera: camera.getState(),
+          });
+          engine.renderViewport(VIEWPORT_ID);
+        },
+        flipVertical: () => {
+          const camera = viewport.getCamera();
+          camera.flipVertical();
+          eventBus.emit(RenderingEvents.CAMERA_MODIFIED, {
+            viewportId: viewport.id,
+            camera: camera.getState(),
+          });
+          engine.renderViewport(VIEWPORT_ID);
+        },
+        rotateRight90: () => {
+          const camera = viewport.getCamera();
+          camera.rotate(90);
+          eventBus.emit(RenderingEvents.CAMERA_MODIFIED, {
+            viewportId: viewport.id,
+            camera: camera.getState(),
+          });
+          engine.renderViewport(VIEWPORT_ID);
+        },
+        getCameraOrientation: () => {
+          const cam = viewport.getCamera().getState();
+          return { rotation: cam.rotation, flipH: cam.flipH, flipV: cam.flipV };
         },
         dispose: () => { },
       };
@@ -263,7 +310,39 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady 
       toolGroup.setToolActive(toolName, [{ mouseButton: MouseButton.Primary }]);
       dispatcherRef.current?.updateCursor();
     }
-  }, [mode]);
+
+    // Auto-create & bind labelmap when a segmentation tool is activated
+    if (SEGMENTATION_MODES.has(mode) && imageData && imageIdRef.current) {
+      const currentImgId = imageIdRef.current;
+      let segId = segIdMapRef.current.get(currentImgId);
+
+      if (!segId) {
+        // Create a new labelmap sized to the current image
+        const seg = segmentationState.createLabelmap(imageData.width, imageData.height, {
+          imageId: currentImgId,
+          label: `Segmentation (${currentImgId.slice(-8)})`,
+        });
+        segId = seg.segmentationId;
+        segIdMapRef.current.set(currentImgId, segId);
+
+        // Bind representation to the viewport
+        segmentationState.addRepresentationToViewport(
+          VIEWPORT_ID,
+          segId,
+          SegmentationRepresentationType.Labelmap,
+        );
+      }
+
+      // Set the segmentationId on ALL segmentation tools so they know where to paint
+      for (const segMode of SEGMENTATION_MODES) {
+        const segToolName = MODE_TO_TOOL_NAME[segMode];
+        const segToolInstance = toolGroup.getToolInstance(segToolName);
+        if (segToolInstance && 'segmentationId' in segToolInstance) {
+          (segToolInstance as BrushTool).segmentationId = segId;
+        }
+      }
+    }
+  }, [mode, imageData]);
 
   // Observe container resizes
   useEffect(() => {

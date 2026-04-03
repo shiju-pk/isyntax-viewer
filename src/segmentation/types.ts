@@ -9,7 +9,7 @@
  *   - Contour = array of Point2 path arrays
  */
 
-import type { Point2 } from '../../tools/base/types';
+import type { Point2 } from '../tools/base/types';
 
 // ─── Enums ──────────────────────────────────────────────────────
 

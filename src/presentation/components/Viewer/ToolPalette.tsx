@@ -1,7 +1,8 @@
 import {
-  Move, ZoomIn, SunMedium, RotateCcw, Download, Info,
+  Move, ZoomIn, SunMedium, RotateCcw, RotateCw, Download, Info,
   Ruler, Triangle, Circle, Square, ArrowUpRight, Crosshair,
   Paintbrush, Eraser, SlidersHorizontal, Scissors, PaintBucket,
+  FlipHorizontal2, FlipVertical2, RefreshCw,
 } from 'lucide-react';
 import type { InteractionMode } from '../../../core/types';
 
@@ -9,6 +10,9 @@ interface ToolPaletteProps {
   activeMode: InteractionMode;
   onModeChange: (mode: InteractionMode) => void;
   onReset: () => void;
+  onFlipHorizontal?: () => void;
+  onFlipVertical?: () => void;
+  onRotateRight90?: () => void;
   onDownload?: () => void;
   canDownload?: boolean;
   showMetadata?: boolean;
@@ -19,6 +23,7 @@ const navigationTools: { mode: InteractionMode; icon: typeof Move; label: string
   { mode: 'pan', icon: Move, label: 'Pan' },
   { mode: 'zoom', icon: ZoomIn, label: 'Zoom' },
   { mode: 'windowLevel', icon: SunMedium, label: 'W/L' },
+  { mode: 'rotate', icon: RefreshCw, label: 'Rotate (drag)' },
 ];
 
 const annotationTools: { mode: InteractionMode; icon: typeof Move; label: string }[] = [
@@ -38,7 +43,7 @@ const segmentationTools: { mode: InteractionMode; icon: typeof Move; label: stri
   { mode: 'floodFill', icon: PaintBucket, label: 'Flood Fill' },
 ];
 
-export default function ToolPalette({ activeMode, onModeChange, onReset, onDownload, canDownload, showMetadata, onToggleMetadata }: ToolPaletteProps) {
+export default function ToolPalette({ activeMode, onModeChange, onReset, onFlipHorizontal, onFlipVertical, onRotateRight90, onDownload, canDownload, showMetadata, onToggleMetadata }: ToolPaletteProps) {
   return (
     <div className="flex items-center gap-1 bg-gray-800/80 backdrop-blur-sm rounded-lg p-1">
       {navigationTools.map(({ mode, icon: Icon, label }) => (
@@ -86,6 +91,33 @@ export default function ToolPalette({ activeMode, onModeChange, onReset, onDownl
         </button>
       ))}
       <div className="w-px h-6 bg-gray-600 mx-1" />
+      {onFlipHorizontal && (
+        <button
+          onClick={onFlipHorizontal}
+          title="Flip Horizontal"
+          className="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+        >
+          <FlipHorizontal2 size={16} />
+        </button>
+      )}
+      {onFlipVertical && (
+        <button
+          onClick={onFlipVertical}
+          title="Flip Vertical"
+          className="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+        >
+          <FlipVertical2 size={16} />
+        </button>
+      )}
+      {onRotateRight90 && (
+        <button
+          onClick={onRotateRight90}
+          title="Rotate 90° CW"
+          className="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+        >
+          <RotateCw size={16} />
+        </button>
+      )}
       <button
         onClick={onReset}
         title="Reset"

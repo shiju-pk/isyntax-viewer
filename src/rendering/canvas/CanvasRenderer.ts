@@ -135,6 +135,12 @@ export function createCanvasRenderer(
     getViewportState() {
       return { ...viewport };
     },
+    flipHorizontal() { /* legacy renderer — no-op */ },
+    flipVertical() { /* legacy renderer — no-op */ },
+    rotateRight90() { /* legacy renderer — no-op */ },
+    getCameraOrientation() {
+      return { rotation: 0, flipH: false, flipV: false };
+    },
     dispose() {
       canvas.removeEventListener('mousedown', onMouseDown);
       canvas.removeEventListener('mousemove', onMouseMove);

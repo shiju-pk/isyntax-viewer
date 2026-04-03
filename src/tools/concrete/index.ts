@@ -1,6 +1,9 @@
 export { NewPanTool } from './NewPanTool';
 export { NewZoomTool } from './NewZoomTool';
 export { NewWindowLevelTool } from './NewWindowLevelTool';
+export { RotateTool } from './RotateTool';
+export { FlipHorizontalTool } from './FlipHorizontalTool';
+export { FlipVerticalTool } from './FlipVerticalTool';
 export { LengthTool } from './LengthTool';
 export { AngleTool } from './AngleTool';
 export { EllipticalROITool } from './EllipticalROITool';

@@ -4,21 +4,28 @@ type EventKey = keyof RenderingEventDetailMap;
 
 class EventBus {
   private target = new EventTarget();
+  private _wrappedListeners = new Map<Function, EventListener>();
 
   on<K extends EventKey>(
     type: K,
     listener: (detail: RenderingEventDetailMap[K]) => void
   ): void {
-    this.target.addEventListener(type, ((e: CustomEvent) => {
+    const wrapped = ((e: CustomEvent) => {
       listener(e.detail);
-    }) as EventListener);
+    }) as EventListener;
+    this._wrappedListeners.set(listener, wrapped);
+    this.target.addEventListener(type, wrapped);
   }
 
   off<K extends EventKey>(
     type: K,
     listener: (detail: RenderingEventDetailMap[K]) => void
   ): void {
-    this.target.removeEventListener(type, listener as unknown as EventListener);
+    const wrapped = this._wrappedListeners.get(listener);
+    if (wrapped) {
+      this.target.removeEventListener(type, wrapped);
+      this._wrappedListeners.delete(listener);
+    }
   }
 
   emit<K extends EventKey>(

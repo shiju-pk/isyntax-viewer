@@ -100,9 +100,12 @@ export class LabelmapRenderer {
     const imageData = viewport.getImageData();
     if (!imageData) return;
 
+    const displayWidth = viewport.canvas.clientWidth;
+    const displayHeight = viewport.canvas.clientHeight;
+
     const transform = camera.computeTransform(
-      ctx.canvas.width,
-      ctx.canvas.height,
+      displayWidth,
+      displayHeight,
       imageData.width,
       imageData.height,
     );

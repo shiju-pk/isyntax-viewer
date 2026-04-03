@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { eventBus, RenderingEvents } from '../../../rendering';
 import type { DicomImageMetadata, StudyInfo } from '../../../core/types';
-import { getOrientationLabels } from '../../../dicom/orientation';
+import { getOrientationLabels, type OrientationLabels } from '../../../dicom/orientation';
 
 interface ViewportOverlayProps {
   metadata: DicomImageMetadata | null;
@@ -21,6 +21,9 @@ export default function ViewportOverlay({
   imageHeight,
 }: ViewportOverlayProps) {
   const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
+  const [flipH, setFlipH] = useState(false);
+  const [flipV, setFlipV] = useState(false);
   const [windowWidth, setWindowWidth] = useState<number | undefined>(undefined);
   const [windowCenter, setWindowCenter] = useState<number | undefined>(undefined);
 
@@ -32,8 +35,11 @@ export default function ViewportOverlay({
 
   // Listen to live camera and VOI events
   useEffect(() => {
-    const onCamera = (detail: { camera: { zoom: number } }) => {
+    const onCamera = (detail: { camera: { zoom: number; rotation: number; flipH: boolean; flipV: boolean } }) => {
       setZoom(detail.camera.zoom);
+      setRotation(detail.camera.rotation);
+      setFlipH(detail.camera.flipH);
+      setFlipV(detail.camera.flipV);
     };
     const onVOI = (detail: { windowCenter: number; windowWidth: number }) => {
       setWindowCenter(detail.windowCenter);
@@ -61,7 +67,34 @@ export default function ViewportOverlay({
   const iop =
     metadata?.imageOrientationPatient ??
     (modality && RADIOLOGY_MODALITIES.has(modality) ? AXIAL_DEFAULT : undefined);
-  const orientationLabels = getOrientationLabels(iop);
+  const baseLabels = getOrientationLabels(iop);
+
+  // Transform orientation labels to reflect camera rotation and flips
+  const orientationLabels = useMemo((): OrientationLabels => {
+    if (!baseLabels.top && !baseLabels.bottom && !baseLabels.left && !baseLabels.right) {
+      return baseLabels;
+    }
+
+    // Start with [top, right, bottom, left]
+    let labels = [baseLabels.top, baseLabels.right, baseLabels.bottom, baseLabels.left];
+
+    // Apply flips (swap opposing labels)
+    if (flipH) {
+      [labels[1], labels[3]] = [labels[3], labels[1]]; // swap left <-> right
+    }
+    if (flipV) {
+      [labels[0], labels[2]] = [labels[2], labels[0]]; // swap top <-> bottom
+    }
+
+    // Apply rotation: each 90° CW shifts labels clockwise around the ring
+    const normRotation = ((rotation % 360) + 360) % 360;
+    const steps = Math.round(normRotation / 90) % 4;
+    for (let i = 0; i < steps; i++) {
+      labels = [labels[3], labels[0], labels[1], labels[2]];
+    }
+
+    return { top: labels[0], right: labels[1], bottom: labels[2], left: labels[3] };
+  }, [baseLabels, rotation, flipH, flipV]);
 
   return (
     <div className="absolute inset-0 pointer-events-none z-10 text-[11px] font-mono text-gray-300/90 leading-snug select-none">

@@ -2,6 +2,7 @@ export type InteractionMode =
   | 'pan'
   | 'zoom'
   | 'windowLevel'
+  | 'rotate'
   | 'length'
   | 'angle'
   | 'ellipticalROI'

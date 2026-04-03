@@ -8,6 +8,7 @@ import { ISyntaxImageService } from '../../../services/image/ISyntaxImageService
 import type { DecodedImage, InteractionMode, DicomImageMetadata, StudyInfo, SeriesGroup } from '../../../core/types';
 import type { ICanvasController } from '../../../core/interfaces';
 import { getStudyInfoAndImageIds, getAllImageMetadata, getSeriesImageGroups } from '../../../services/study/StudyService';
+
 import { Loader2 } from 'lucide-react';
 import MetadataPanel from '../../components/Viewer/MetadataPanel';
 import ResizeHandle from '../../components/Viewer/ResizeHandle';
@@ -171,7 +172,21 @@ export default function ViewerPage() {
     setMetaWidth(prev => Math.max(200, Math.min(500, prev + delta)));
   }, []);
   const handleControllerReady = (controller: ICanvasController) => { controllerRef.current = controller; };
-  const handleReset = () => { controllerRef.current?.reset(); };
+  const handleReset = () => {
+    controllerRef.current?.reset();
+  };
+
+  const handleFlipHorizontal = useCallback(() => {
+    controllerRef.current?.flipHorizontal();
+  }, []);
+
+  const handleFlipVertical = useCallback(() => {
+    controllerRef.current?.flipVertical();
+  }, []);
+
+  const handleRotateRight90 = useCallback(() => {
+    controllerRef.current?.rotateRight90();
+  }, []);
 
   const handleDownloadRaw = useCallback(() => {
     if (!currentImage || imageIds.length === 0) return;
@@ -208,7 +223,7 @@ export default function ViewerPage() {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       <TitleBar title="" showBackButton>
-        <ToolPalette activeMode={mode} onModeChange={setMode} onReset={handleReset} onDownload={handleDownloadRaw} canDownload={currentImage !== null} showMetadata={showMetadata} onToggleMetadata={() => setShowMetadata(prev => !prev)} />
+        <ToolPalette activeMode={mode} onModeChange={setMode} onReset={handleReset} onFlipHorizontal={handleFlipHorizontal} onFlipVertical={handleFlipVertical} onRotateRight90={handleRotateRight90} onDownload={handleDownloadRaw} canDownload={currentImage !== null} showMetadata={showMetadata} onToggleMetadata={() => setShowMetadata(prev => !prev)} />
       </TitleBar>
       <div className="flex flex-1 overflow-hidden">
         {studyLoading ? (
