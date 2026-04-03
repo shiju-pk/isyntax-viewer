@@ -41,9 +41,14 @@ export default function ResizeHandle({ side, onResize }: ResizeHandleProps) {
   }, [onResize, side]);
 
   return (
-    <div
-      onMouseDown={onMouseDown}
-      className="w-1 shrink-0 cursor-col-resize bg-gray-800 hover:bg-blue-500 active:bg-blue-400 transition-colors"
-    />
+    <div className="relative w-1.5 shrink-0 group">
+      {/* Visual bar */}
+      <div className="absolute inset-y-0 left-0 w-1.5 bg-gray-800 group-hover:bg-blue-500 group-active:bg-blue-400 transition-colors pointer-events-none" />
+      {/* Wider invisible hit area for easier targeting */}
+      <div
+        onMouseDown={onMouseDown}
+        className="absolute inset-y-0 -left-2.5 w-7 cursor-col-resize"
+      />
+    </div>
   );
 }

@@ -9,7 +9,7 @@ import type { DecodedImage, InteractionMode, DicomImageMetadata, StudyInfo, Seri
 import type { ICanvasController } from '../../../core/interfaces';
 import { getStudyInfoAndImageIds, getAllImageMetadata, getSeriesImageGroups } from '../../../services/study/StudyService';
 
-import { Loader2 } from 'lucide-react';
+import { Loader2, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown } from 'lucide-react';
 import MetadataPanel from '../../components/Viewer/MetadataPanel';
 import ResizeHandle from '../../components/Viewer/ResizeHandle';
 import ViewportOverlay from '../../components/Viewer/ViewportOverlay';
@@ -266,6 +266,12 @@ export default function ViewerPage() {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       <TitleBar title="" showBackButton>
+        {studyInfo?.patientName && (
+          <div className="flex items-center gap-2 text-sm text-gray-400 mr-4 shrink-0">
+            <span className="font-medium text-gray-200 truncate max-w-48">{studyInfo.patientName}</span>
+            {studyInfo.modality && <><span className="text-gray-600">•</span><span>{studyInfo.modality}</span></>}
+          </div>
+        )}
         <ToolPalette activeMode={mode} onModeChange={setMode} onReset={handleReset} onFlipHorizontal={handleFlipHorizontal} onFlipVertical={handleFlipVertical} onRotateRight90={handleRotateRight90} onDownload={handleDownloadRaw} canDownload={currentImage !== null} showMetadata={showMetadata} onToggleMetadata={() => setShowMetadata(prev => !prev)} />
       </TitleBar>
       <div className="flex flex-1 overflow-hidden">
@@ -277,27 +283,28 @@ export default function ViewerPage() {
           <ThumbnailPanel seriesGroups={seriesGroups} selectedSeriesIndex={selectedSeriesIndex} selectedImageIndex={selectedImageIndex} thumbnails={thumbnails} onSelect={handleThumbnailClick} width={thumbWidth} />
         )}
         <ResizeHandle side="left" onResize={handleThumbResize} />
-        <div className="flex-1 flex flex-col relative bg-black border border-gray-800">
+        <div className="flex-1 flex flex-col relative bg-black">
           {(loading || progress || error || studyLoading) && (
             <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
               {studyLoading && (
                 <div className="flex items-center gap-2 bg-gray-900/80 backdrop-blur-sm px-4 py-2 rounded-lg">
-                  <Loader2 size={18} className="animate-spin text-blue-400" />
+                  <Loader2 size={20} className="animate-spin text-blue-400" />
                   <span className="text-sm text-gray-200">Fetching study metadata...</span>
                 </div>
               )}
               {loading && !studyLoading && (
                 <div className="flex items-center gap-2 bg-gray-900/80 backdrop-blur-sm px-4 py-2 rounded-lg">
-                  <Loader2 size={18} className="animate-spin text-blue-400" />
+                  <Loader2 size={20} className="animate-spin text-blue-400" />
                   <span className="text-sm text-gray-200">Loading image...</span>
                 </div>
               )}
               {progress && !loading && !studyLoading && (
-                <div className="bg-gray-900/80 backdrop-blur-sm px-4 py-2 rounded-lg">
-                  <div className="text-xs text-gray-400 mb-1">Enhancing: level {progress.level}/{progress.total}</div>
-                  <div className="w-48 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                <div className="bg-gray-900/80 backdrop-blur-sm px-5 py-3 rounded-lg">
+                  <div className="text-xs text-gray-300 mb-1.5">Enhancing image resolution…</div>
+                  <div className="w-56 h-2 bg-gray-700 rounded-full overflow-hidden">
                     <div className="h-full bg-blue-500 rounded-full transition-all duration-300" style={{ width: `${(progress.level / progress.total) * 100}%` }} />
                   </div>
+                  <div className="text-[11px] text-gray-500 mt-1 text-right tabular-nums">{Math.round((progress.level / progress.total) * 100)}% ({progress.level}/{progress.total})</div>
                 </div>
               )}
               {error && (
@@ -334,22 +341,24 @@ export default function ViewerPage() {
             </div>
             {/* Image position scrollbar — right side of viewport */}
             {currentSeriesImageCount > 1 && (
-              <div className="flex flex-col items-center w-7 shrink-0 bg-gray-900/60 border-l border-gray-700/50 select-none py-1 gap-0.5">
+              <div className="flex flex-col items-center w-8 shrink-0 bg-gray-900/60 border-l border-gray-700/50 select-none py-1 gap-0.5">
                 <button
                   onClick={() => navigateImage(0)}
                   disabled={selectedImageIndex === 0}
                   title="First image"
-                  className="p-0.5 rounded text-[9px] font-bold text-gray-400 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:hover:bg-transparent transition-colors"
+                  aria-label="First image"
+                  className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:hover:bg-transparent transition-colors"
                 >
-                  ▲▲
+                  <ChevronsUp size={14} />
                 </button>
                 <button
                   onClick={() => navigateImage(selectedImageIndex - 1)}
                   disabled={selectedImageIndex === 0}
                   title="Previous image"
-                  className="p-0.5 rounded text-[10px] text-gray-400 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:hover:bg-transparent transition-colors"
+                  aria-label="Previous image"
+                  className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:hover:bg-transparent transition-colors"
                 >
-                  ▲
+                  <ChevronUp size={14} />
                 </button>
                 <div className="flex-1 flex flex-col items-center justify-center min-h-0 w-full px-0.5">
                   <input
@@ -359,10 +368,11 @@ export default function ViewerPage() {
                     value={selectedImageIndex}
                     onChange={handleSliderChange}
                     title={`Image ${selectedImageIndex + 1} / ${currentSeriesImageCount}`}
+                    aria-label={`Image ${selectedImageIndex + 1} of ${currentSeriesImageCount}`}
                     style={{
                       writingMode: 'vertical-lr',
                       height: '100%',
-                      width: '14px',
+                      width: '18px',
                       accentColor: '#3b82f6',
                       cursor: 'pointer',
                     }}
@@ -372,19 +382,21 @@ export default function ViewerPage() {
                   onClick={() => navigateImage(selectedImageIndex + 1)}
                   disabled={selectedImageIndex >= currentSeriesImageCount - 1}
                   title="Next image"
-                  className="p-0.5 rounded text-[10px] text-gray-400 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:hover:bg-transparent transition-colors"
+                  aria-label="Next image"
+                  className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:hover:bg-transparent transition-colors"
                 >
-                  ▼
+                  <ChevronDown size={14} />
                 </button>
                 <button
                   onClick={() => navigateImage(currentSeriesImageCount - 1)}
                   disabled={selectedImageIndex >= currentSeriesImageCount - 1}
                   title="Last image"
-                  className="p-0.5 rounded text-[9px] font-bold text-gray-400 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:hover:bg-transparent transition-colors"
+                  aria-label="Last image"
+                  className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:hover:bg-transparent transition-colors"
                 >
-                  ▼▼
+                  <ChevronsDown size={14} />
                 </button>
-                <span className="text-[9px] text-gray-500 tabular-nums leading-none mt-0.5">
+                <span className="text-[11px] text-gray-500 tabular-nums leading-none mt-0.5">
                   {selectedImageIndex + 1}/{currentSeriesImageCount}
                 </span>
               </div>

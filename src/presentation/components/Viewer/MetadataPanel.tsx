@@ -39,9 +39,10 @@ export default function MetadataPanel({ studyInfo, metadata, instanceUID, onClos
         <h3 className="text-sm font-semibold text-gray-200">DICOM Metadata</h3>
         <button
           onClick={onClose}
-          className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
+          aria-label="Close metadata panel"
+          className="p-1.5 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
         >
-          <X size={14} />
+          <X size={16} />
         </button>
       </div>
 

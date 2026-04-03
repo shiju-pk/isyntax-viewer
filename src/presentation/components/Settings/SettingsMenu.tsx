@@ -36,8 +36,9 @@ export default function SettingsMenu() {
       <div ref={menuRef} className="relative ml-auto">
         <button
           onClick={() => setOpen((prev) => !prev)}
-          className="p-1.5 rounded-md hover:bg-gray-700 transition-colors text-gray-300 hover:text-white"
+          className="p-2 rounded-md hover:bg-gray-700 transition-colors text-gray-300 hover:text-white"
           title="Settings"
+          aria-label="Settings"
           aria-haspopup="true"
           aria-expanded={open}
         >

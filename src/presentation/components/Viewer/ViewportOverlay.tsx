@@ -99,19 +99,19 @@ export default function ViewportOverlay({
   return (
     <div className="absolute inset-0 pointer-events-none z-10 text-[11px] font-mono text-gray-300/90 leading-snug select-none">
       {/* Top-Left: Patient info */}
-      <div className="absolute top-2 left-3 flex flex-col gap-0.5">
+      <div className="absolute top-3 left-4 flex flex-col gap-0.5">
         {patientName && <span className="text-white/90 text-xs font-semibold">{patientName}</span>}
         {patientId && <span>ID: {patientId}</span>}
         {modality && <span>{modality}</span>}
         {metadata?.seriesUID && (
-          <span className="text-gray-500 text-[10px] truncate max-w-48">
+          <span className="text-gray-500 text-[11px] truncate max-w-48">
             Se: {metadata.seriesUID.split('.').pop()}
           </span>
         )}
       </div>
 
       {/* Top-Right: Image info */}
-      <div className="absolute top-2 right-3 flex flex-col gap-0.5 items-end">
+      <div className="absolute top-3 right-4 flex flex-col gap-0.5 items-end">
         <span>Im: {imageIndex + 1}/{imageCount}</span>
         {imageWidth != null && imageHeight != null && (
           <span>{imageWidth} &times; {imageHeight}</span>
@@ -125,7 +125,7 @@ export default function ViewportOverlay({
       </div>
 
       {/* Bottom-Left: W/L, Zoom */}
-      <div className="absolute bottom-2 left-3 flex flex-col gap-0.5">
+      <div className="absolute bottom-3 left-4 flex flex-col gap-0.5">
         {windowWidth != null && windowCenter != null && (
           <span>
             WW: {Math.round(windowWidth)} WL: {Math.round(windowCenter)}
@@ -148,7 +148,7 @@ export default function ViewportOverlay({
       </div>
 
       {/* Bottom-Right: Compression / format info */}
-      <div className="absolute bottom-2 right-3 flex flex-col gap-0.5 items-end">
+      <div className="absolute bottom-3 right-4 flex flex-col gap-0.5 items-end">
         {metadata?.iSyntaxPartitionDimension != null && (
           <span>iSyntax Dim: {metadata.iSyntaxPartitionDimension}</span>
         )}
@@ -156,22 +156,22 @@ export default function ViewportOverlay({
 
       {/* Orientation markers at viewport edges */}
       {orientationLabels.top && (
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 text-yellow-400/80 text-xl font-bold">
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 text-yellow-400/80 text-lg font-bold bg-black/30 px-1.5 rounded">
           {orientationLabels.top}
         </div>
       )}
       {orientationLabels.bottom && (
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-yellow-400/80 text-xl font-bold">
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-yellow-400/80 text-lg font-bold bg-black/30 px-1.5 rounded">
           {orientationLabels.bottom}
         </div>
       )}
       {orientationLabels.left && (
-        <div className="absolute left-2 top-1/2 -translate-y-1/2 text-yellow-400/80 text-xl font-bold">
+        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-yellow-400/80 text-lg font-bold bg-black/30 px-1.5 rounded">
           {orientationLabels.left}
         </div>
       )}
       {orientationLabels.right && (
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 text-yellow-400/80 text-xl font-bold">
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-yellow-400/80 text-lg font-bold bg-black/30 px-1.5 rounded">
           {orientationLabels.right}
         </div>
       )}

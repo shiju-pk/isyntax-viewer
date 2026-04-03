@@ -13,7 +13,7 @@ export class NewZoomTool extends BaseTool {
   static override toolName = 'Zoom';
 
   override get cursor(): string {
-    return 'crosshair';
+    return 'zoom-in';
   }
 
   override mouseDragCallback(evt: NormalizedPointerEvent): void {

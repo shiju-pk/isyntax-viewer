@@ -16,6 +16,20 @@ export class NewPanTool extends BaseTool {
     return 'grab';
   }
 
+  override mouseDownCallback(evt: NormalizedPointerEvent): void {
+    // Switch to grabbing cursor during drag
+    if (this.viewportRef?.element) {
+      this.viewportRef.element.style.cursor = 'grabbing';
+    }
+  }
+
+  override mouseUpCallback(evt: NormalizedPointerEvent): void {
+    // Restore grab cursor
+    if (this.viewportRef?.element) {
+      this.viewportRef.element.style.cursor = 'grab';
+    }
+  }
+
   override mouseDragCallback(evt: NormalizedPointerEvent): void {
     const vp = this.viewportRef?.viewport;
     if (!vp || !(vp instanceof Viewport)) return;

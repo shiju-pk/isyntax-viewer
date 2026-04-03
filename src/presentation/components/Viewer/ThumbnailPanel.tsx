@@ -99,19 +99,21 @@ function SeriesCard({
       </button>
 
       {hasMultiple && (
-        <div className="flex items-center justify-between bg-gray-800/80 px-1 py-0.5">
+        <div className="flex items-center justify-between bg-gray-800/80 px-1.5 py-1">
           <button
             onClick={goPrev}
-            className="p-0.5 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
+            aria-label="Previous image in series"
+            className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
           >
             <ChevronLeft size={14} />
           </button>
-          <span className="text-[10px] text-gray-400 tabular-nums">
+          <span className="text-[11px] text-gray-400 tabular-nums">
             {visibleIndex + 1}/{imageCount}
           </span>
           <button
             onClick={goNext}
-            className="p-0.5 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
+            aria-label="Next image in series"
+            className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
           >
             <ChevronRight size={14} />
           </button>
@@ -131,7 +133,7 @@ export default function ThumbnailPanel({
 }: ThumbnailPanelProps) {
   return (
     <div
-      className="flex flex-wrap content-start gap-2 p-2 overflow-y-auto min-h-0 bg-gray-900/50 shrink-0"
+      className="flex flex-wrap content-start gap-2 p-2 overflow-y-auto min-h-0 bg-gray-900 shrink-0"
       style={{ width }}
     >
       {seriesGroups.map((group, sIdx) => (

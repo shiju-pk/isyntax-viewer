@@ -16,7 +16,7 @@ export class NewWindowLevelTool extends BaseTool {
   private _windowWidth = 256;
 
   override get cursor(): string {
-    return 'crosshair';
+    return 'col-resize';
   }
 
   override onSetToolActive(): void {
