@@ -306,28 +306,6 @@ export default function ViewerPage() {
             </div>
           )}
           <div className="relative flex-1 min-h-0 flex">
-            {/* Image position slider — only shown when series has multiple images */}
-            {currentSeriesImageCount > 1 && (
-              <div className="flex flex-col items-center justify-center w-6 shrink-0 bg-gray-900/60 select-none">
-                <input
-                  type="range"
-                  min={0}
-                  max={currentSeriesImageCount - 1}
-                  value={selectedImageIndex}
-                  onChange={handleSliderChange}
-                  className="image-position-slider"
-                  title={`Image ${selectedImageIndex + 1} / ${currentSeriesImageCount}`}
-                  style={{
-                    writingMode: 'vertical-lr',
-                    direction: 'rtl',
-                    height: '90%',
-                    width: '16px',
-                    accentColor: '#3b82f6',
-                    cursor: 'pointer',
-                  }}
-                />
-              </div>
-            )}
             <div className="flex-1 min-w-0 relative" onWheel={handleImageWheel}>
               <MainImage
                 imageData={currentImage}
@@ -354,6 +332,63 @@ export default function ViewerPage() {
                 imageHeight={currentImage?.height ?? null}
               />
             </div>
+            {/* Image position scrollbar — right side of viewport */}
+            {currentSeriesImageCount > 1 && (
+              <div className="flex flex-col items-center w-7 shrink-0 bg-gray-900/60 border-l border-gray-700/50 select-none py-1 gap-0.5">
+                <button
+                  onClick={() => navigateImage(0)}
+                  disabled={selectedImageIndex === 0}
+                  title="First image"
+                  className="p-0.5 rounded text-[9px] font-bold text-gray-400 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:hover:bg-transparent transition-colors"
+                >
+                  ▲▲
+                </button>
+                <button
+                  onClick={() => navigateImage(selectedImageIndex - 1)}
+                  disabled={selectedImageIndex === 0}
+                  title="Previous image"
+                  className="p-0.5 rounded text-[10px] text-gray-400 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:hover:bg-transparent transition-colors"
+                >
+                  ▲
+                </button>
+                <div className="flex-1 flex flex-col items-center justify-center min-h-0 w-full px-0.5">
+                  <input
+                    type="range"
+                    min={0}
+                    max={currentSeriesImageCount - 1}
+                    value={selectedImageIndex}
+                    onChange={handleSliderChange}
+                    title={`Image ${selectedImageIndex + 1} / ${currentSeriesImageCount}`}
+                    style={{
+                      writingMode: 'vertical-lr',
+                      height: '100%',
+                      width: '14px',
+                      accentColor: '#3b82f6',
+                      cursor: 'pointer',
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={() => navigateImage(selectedImageIndex + 1)}
+                  disabled={selectedImageIndex >= currentSeriesImageCount - 1}
+                  title="Next image"
+                  className="p-0.5 rounded text-[10px] text-gray-400 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:hover:bg-transparent transition-colors"
+                >
+                  ▼
+                </button>
+                <button
+                  onClick={() => navigateImage(currentSeriesImageCount - 1)}
+                  disabled={selectedImageIndex >= currentSeriesImageCount - 1}
+                  title="Last image"
+                  className="p-0.5 rounded text-[9px] font-bold text-gray-400 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:hover:bg-transparent transition-colors"
+                >
+                  ▼▼
+                </button>
+                <span className="text-[9px] text-gray-500 tabular-nums leading-none mt-0.5">
+                  {selectedImageIndex + 1}/{currentSeriesImageCount}
+                </span>
+              </div>
+            )}
           </div>
         </div>
         {showMetadata && (
