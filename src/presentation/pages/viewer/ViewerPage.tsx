@@ -206,6 +206,31 @@ export default function ViewerPage() {
     controllerRef.current?.rotateRight90();
   }, []);
 
+  // --- Image traversal helpers ---
+  const currentSeriesImageCount = seriesGroups[selectedSeriesIndex]?.imageIds.length ?? 0;
+
+  const navigateImage = useCallback((targetIndex: number) => {
+    if (seriesGroups.length === 0) return;
+    const group = seriesGroups[selectedSeriesIndex];
+    if (!group) return;
+    const clamped = Math.max(0, Math.min(group.imageIds.length - 1, targetIndex));
+    if (clamped === selectedImageIndex) return;
+    handleThumbnailClick(selectedSeriesIndex, clamped);
+  }, [seriesGroups, selectedSeriesIndex, selectedImageIndex, handleThumbnailClick]);
+
+  const handleImageWheel = useCallback((e: React.WheelEvent) => {
+    // Only navigate images when NOT in zoom mode (zoom mode uses wheel for zoom)
+    if (mode === 'zoom') return;
+    if (currentSeriesImageCount <= 1) return;
+    e.stopPropagation();
+    const delta = e.deltaY > 0 ? 1 : -1;
+    navigateImage(selectedImageIndex + delta);
+  }, [mode, currentSeriesImageCount, selectedImageIndex, navigateImage]);
+
+  const handleSliderChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    navigateImage(Number(e.target.value));
+  }, [navigateImage]);
+
   const handleDownloadRaw = useCallback(() => {
     if (!currentImage || imageIds.length === 0) return;
     const instanceUID = imageIds[selectedIndex];
@@ -280,31 +305,55 @@ export default function ViewerPage() {
               )}
             </div>
           )}
-          <div className="relative flex-1 min-h-0">
-            <MainImage
-              imageData={currentImage}
-              mode={mode}
-              imageId={(() => {
-                if (seriesGroups.length === 0) return undefined;
-                const group = seriesGroups[selectedSeriesIndex];
-                return group?.imageIds[selectedImageIndex];
-              })()}
-              onControllerReady={handleControllerReady}
-            />
-            <ViewportOverlay
-              metadata={(() => {
-                if (seriesGroups.length === 0) return null;
-                const group = seriesGroups[selectedSeriesIndex];
-                if (!group) return null;
-                const uid = group.imageIds[selectedImageIndex];
-                return uid ? metadataMap.get(uid) ?? null : null;
-              })()}
-              studyInfo={studyInfo}
-              imageIndex={selectedIndex}
-              imageCount={imageIds.length}
-              imageWidth={currentImage?.width ?? null}
-              imageHeight={currentImage?.height ?? null}
-            />
+          <div className="relative flex-1 min-h-0 flex">
+            {/* Image position slider — only shown when series has multiple images */}
+            {currentSeriesImageCount > 1 && (
+              <div className="flex flex-col items-center justify-center w-6 shrink-0 bg-gray-900/60 select-none">
+                <input
+                  type="range"
+                  min={0}
+                  max={currentSeriesImageCount - 1}
+                  value={selectedImageIndex}
+                  onChange={handleSliderChange}
+                  className="image-position-slider"
+                  title={`Image ${selectedImageIndex + 1} / ${currentSeriesImageCount}`}
+                  style={{
+                    writingMode: 'vertical-lr',
+                    direction: 'rtl',
+                    height: '90%',
+                    width: '16px',
+                    accentColor: '#3b82f6',
+                    cursor: 'pointer',
+                  }}
+                />
+              </div>
+            )}
+            <div className="flex-1 min-w-0 relative" onWheel={handleImageWheel}>
+              <MainImage
+                imageData={currentImage}
+                mode={mode}
+                imageId={(() => {
+                  if (seriesGroups.length === 0) return undefined;
+                  const group = seriesGroups[selectedSeriesIndex];
+                  return group?.imageIds[selectedImageIndex];
+                })()}
+                onControllerReady={handleControllerReady}
+              />
+              <ViewportOverlay
+                metadata={(() => {
+                  if (seriesGroups.length === 0) return null;
+                  const group = seriesGroups[selectedSeriesIndex];
+                  if (!group) return null;
+                  const uid = group.imageIds[selectedImageIndex];
+                  return uid ? metadataMap.get(uid) ?? null : null;
+                })()}
+                studyInfo={studyInfo}
+                imageIndex={selectedIndex}
+                imageCount={imageIds.length}
+                imageWidth={currentImage?.width ?? null}
+                imageHeight={currentImage?.height ?? null}
+              />
+            </div>
           </div>
         </div>
         {showMetadata && (
