@@ -60,6 +60,8 @@ export class DecodeWorkerPool {
   private idleCheckInterval: ReturnType<typeof setInterval> | null = null;
   private workerUrl: URL;
   private terminated = false;
+  /** Maps imageKey → worker index for stateful affinity routing */
+  private imageKeyAffinity = new Map<string, number>();
 
   constructor(options: DecodeWorkerPoolOptions = {}) {
     this.maxWorkers = options.maxWorkers ?? (navigator.hardwareConcurrency || 4);
@@ -77,13 +79,15 @@ export class DecodeWorkerPool {
   /**
    * Submit a decode task. Returns a promise with the decoded result.
    * The worker transfers the pixel data buffer (zero-copy).
+   * Tasks with the same imageKey are routed to the same worker (affinity)
+   * because each worker maintains per-image ISyntaxProcessor state.
    */
   async decode(task: DecodeTask): Promise<DecodeResult> {
     if (this.terminated) {
       throw new Error('DecodeWorkerPool has been terminated');
     }
 
-    const entry = this._getOrCreateWorker();
+    const entry = this._getWorkerForTask(task);
     entry.pendingTasks++;
     entry.lastActivity = performance.now();
 
@@ -125,6 +129,7 @@ export class DecodeWorkerPool {
       entry.pendingCallbacks.clear();
     }
     this.workers = [];
+    this.imageKeyAffinity.clear();
   }
 
   get workerCount(): number {
@@ -136,6 +141,28 @@ export class DecodeWorkerPool {
   }
 
   // --- Private ---
+
+  /**
+   * Route a task to the correct worker. For tasks with an imageKey that has
+   * been seen before (e.g. coefficients after initImage), route to the same
+   * worker that holds the ISyntaxProcessor state. For new imageKeys, pick
+   * the least-loaded worker and record the affinity.
+   */
+  private _getWorkerForTask(task: DecodeTask): WorkerEntry {
+    const { imageKey } = task;
+
+    // Check if we already have affinity for this imageKey
+    const affinityIdx = this.imageKeyAffinity.get(imageKey);
+    if (affinityIdx !== undefined && affinityIdx < this.workers.length) {
+      return this.workers[affinityIdx];
+    }
+
+    // No affinity yet — pick (or create) the least-loaded worker
+    const entry = this._getOrCreateWorker();
+    const idx = this.workers.indexOf(entry);
+    this.imageKeyAffinity.set(imageKey, idx);
+    return entry;
+  }
 
   /**
    * Pick the least-loaded worker, or create a new one if under the limit.
@@ -194,9 +221,18 @@ export class DecodeWorkerPool {
       entry.pendingCallbacks.clear();
       entry.pendingTasks = 0;
 
-      // Remove dead worker from pool
+      // Remove dead worker from pool and fix affinity indices
       const idx = this.workers.indexOf(entry);
-      if (idx !== -1) this.workers.splice(idx, 1);
+      if (idx !== -1) {
+        this.workers.splice(idx, 1);
+        for (const [key, afIdx] of this.imageKeyAffinity) {
+          if (afIdx === idx) {
+            this.imageKeyAffinity.delete(key);
+          } else if (afIdx > idx) {
+            this.imageKeyAffinity.set(key, afIdx - 1);
+          }
+        }
+      }
     };
 
     this.workers.push(entry);
@@ -219,6 +255,15 @@ export class DecodeWorkerPool {
       if (idle && this.workers.length > 1) {
         entry.worker.terminate();
         this.workers.splice(i, 1);
+
+        // Clear affinity entries that pointed to this or higher indices
+        for (const [key, idx] of this.imageKeyAffinity) {
+          if (idx === i) {
+            this.imageKeyAffinity.delete(key);
+          } else if (idx > i) {
+            this.imageKeyAffinity.set(key, idx - 1);
+          }
+        }
       }
     }
   }

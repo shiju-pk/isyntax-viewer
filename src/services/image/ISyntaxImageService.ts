@@ -123,6 +123,9 @@ export class ISyntaxImageService {
         // Copy buffer before worker transfer (buffer is detached after transfer)
         const workerBuffer = buffer.slice(0);
         decoded = await this._decodeInitImageInWorker(workerBuffer, rows, cols);
+        // Also initialise main-thread processor state so the fallback path
+        // in loadLevel() works if the worker later becomes unavailable.
+        this._ensureMainThreadState(new Uint8Array(buffer));
       } catch (workerErr) {
         console.warn('Worker decode failed for InitImage, falling back to main thread:', workerErr);
         decoded = this._decodeInitImageMainThread(new Uint8Array(buffer), rows, cols);
@@ -301,6 +304,25 @@ export class ISyntaxImageService {
   // ------------------------------------------------------------------
   // Main-thread decode paths (fallback / debug)
   // ------------------------------------------------------------------
+
+  /**
+   * Initialise main-thread ISyntaxImage/Processor from a raw InitImage
+   * response buffer WITHOUT performing full decode.  This is called after
+   * a successful worker-based initImage so that the main-thread fallback
+   * path in _decodeCoefficientMainThread has valid state.
+   */
+  private _ensureMainThreadState(uint8Array: Uint8Array): void {
+    if (this._iSyntaxImage && this._processor) return; // already set
+
+    const iir = InitImageResponseParser.parse(uint8Array);
+    const imageFrame: IImageFrame = { rows: iir.rows, columns: iir.cols, imageId: this._instanceUID };
+    this._iSyntaxImage = new ISyntaxImage(imageFrame);
+    this._processor = new ISyntaxProcessor(this._iSyntaxImage);
+
+    // Replay the InitImage through the processor so wavelet state is ready
+    const serverResponse = new ServerResponse(ResponseType.InitImage, iir.xformLevels, uint8Array);
+    this._processor.ComputeZoomLevelView(serverResponse, iir.xformLevels);
+  }
 
   private _decodeInitImageMainThread(uint8Array: Uint8Array, rows: number, cols: number): DecodedImage {
     const imageFrame: IImageFrame = { rows, columns: cols, imageId: this._instanceUID };
