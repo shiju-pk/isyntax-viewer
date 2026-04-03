@@ -26,6 +26,10 @@ export default defineConfig({
       '@services': path.resolve(__dirname, 'src/services'),
       '@presentation': path.resolve(__dirname, 'src/presentation'),
       '@tools': path.resolve(__dirname, 'src/tools'),
+      '@workers': path.resolve(__dirname, 'src/workers'),
+      '@cache': path.resolve(__dirname, 'src/cache'),
+      '@requestPool': path.resolve(__dirname, 'src/requestPool'),
+      '@segmentation': path.resolve(__dirname, 'src/segmentation'),
     },
   },
   server: {

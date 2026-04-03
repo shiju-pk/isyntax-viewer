@@ -1,4 +1,18 @@
-export type InteractionMode = 'pan' | 'zoom' | 'windowLevel';
+export type InteractionMode =
+  | 'pan'
+  | 'zoom'
+  | 'windowLevel'
+  | 'length'
+  | 'angle'
+  | 'ellipticalROI'
+  | 'rectangleROI'
+  | 'arrowAnnotate'
+  | 'probe'
+  | 'brush'
+  | 'eraser'
+  | 'thresholdBrush'
+  | 'scissors'
+  | 'floodFill';
 
 export interface ViewportState {
   panX: number;

@@ -1,5 +1,5 @@
 // Services layer — application orchestration
-export { ISyntaxImageService } from './image/ISyntaxImageService';
+export { ISyntaxImageService, disposeSharedWorkerPool } from './image/ISyntaxImageService';
 export {
   fetchStudyDoc,
   getAllImageMetadata,

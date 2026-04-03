@@ -9,4 +9,6 @@ export type {
   CameraModifiedEventDetail,
   VOIModifiedEventDetail,
   ElementResizeEventDetail,
+  ImageQualityChangedEventDetail,
+  ImageLoadProgressEventDetail,
 } from './RenderingEvents';

@@ -47,3 +47,7 @@ export type {
   CameraModifiedEventDetail,
   VOIModifiedEventDetail,
 } from './events';
+
+// Synchronizers
+export { Synchronizer, createZoomPanSynchronizer, createVOISynchronizer } from './sync';
+export type { SyncCallback } from './sync';

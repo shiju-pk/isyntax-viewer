@@ -1,3 +1,5 @@
+import type { ImageQualityStatus } from '../../core/enums/ImageQualityStatus';
+
 export const RenderingEvents = {
   IMAGE_RENDERED: 'RENDERING:IMAGE_RENDERED',
   VIEWPORT_ENABLED: 'RENDERING:VIEWPORT_ENABLED',
@@ -5,6 +7,8 @@ export const RenderingEvents = {
   CAMERA_MODIFIED: 'RENDERING:CAMERA_MODIFIED',
   VOI_MODIFIED: 'RENDERING:VOI_MODIFIED',
   ELEMENT_RESIZE: 'RENDERING:ELEMENT_RESIZE',
+  IMAGE_QUALITY_CHANGED: 'RENDERING:IMAGE_QUALITY_CHANGED',
+  IMAGE_LOAD_PROGRESS: 'RENDERING:IMAGE_LOAD_PROGRESS',
 } as const;
 
 export type RenderingEventType =
@@ -52,6 +56,23 @@ export interface ElementResizeEventDetail {
   height: number;
 }
 
+export interface ImageQualityChangedEventDetail {
+  imageId: string;
+  viewportId?: string;
+  previousStatus: ImageQualityStatus;
+  currentStatus: ImageQualityStatus;
+  level: number;
+  totalLevels: number;
+}
+
+export interface ImageLoadProgressEventDetail {
+  imageId: string;
+  level: number;
+  totalLevels: number;
+  /** 0-100 percentage */
+  percentComplete: number;
+}
+
 export type RenderingEventDetailMap = {
   [RenderingEvents.IMAGE_RENDERED]: ImageRenderedEventDetail;
   [RenderingEvents.VIEWPORT_ENABLED]: ViewportEnabledEventDetail;
@@ -59,4 +80,6 @@ export type RenderingEventDetailMap = {
   [RenderingEvents.CAMERA_MODIFIED]: CameraModifiedEventDetail;
   [RenderingEvents.VOI_MODIFIED]: VOIModifiedEventDetail;
   [RenderingEvents.ELEMENT_RESIZE]: ElementResizeEventDetail;
+  [RenderingEvents.IMAGE_QUALITY_CHANGED]: ImageQualityChangedEventDetail;
+  [RenderingEvents.IMAGE_LOAD_PROGRESS]: ImageLoadProgressEventDetail;
 };

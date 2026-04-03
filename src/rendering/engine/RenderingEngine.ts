@@ -32,6 +32,7 @@ export class RenderingEngine {
   private _animationFrameSet = false;
   private _animationFrameHandle: number | null = null;
   private _destroyed = false;
+  private _afterRenderCallbacks: Array<() => void> = [];
 
   constructor(id?: string) {
     this.id = id ?? generateId();
@@ -167,6 +168,14 @@ export class RenderingEngine {
     return this._destroyed;
   }
 
+  onAfterRender(cb: () => void): () => void {
+    this._afterRenderCallbacks.push(cb);
+    return () => {
+      const idx = this._afterRenderCallbacks.indexOf(cb);
+      if (idx !== -1) this._afterRenderCallbacks.splice(idx, 1);
+    };
+  }
+
   private _setViewportsToBeRenderedNextFrame(viewportIds: string[]): void {
     for (const id of viewportIds) {
       this._needsRender.add(id);
@@ -195,6 +204,10 @@ export class RenderingEngine {
       if (viewport) {
         viewport.render();
       }
+    }
+
+    for (const cb of this._afterRenderCallbacks) {
+      cb();
     }
   };
 

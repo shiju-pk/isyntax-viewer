@@ -1,4 +1,8 @@
-import { Move, ZoomIn, SunMedium, RotateCcw, Download, Info } from 'lucide-react';
+import {
+  Move, ZoomIn, SunMedium, RotateCcw, Download, Info,
+  Ruler, Triangle, Circle, Square, ArrowUpRight, Crosshair,
+  Paintbrush, Eraser, SlidersHorizontal, Scissors, PaintBucket,
+} from 'lucide-react';
 import type { InteractionMode } from '../../../core/types';
 
 interface ToolPaletteProps {
@@ -11,16 +15,33 @@ interface ToolPaletteProps {
   onToggleMetadata?: () => void;
 }
 
-const tools: { mode: InteractionMode; icon: typeof Move; label: string }[] = [
+const navigationTools: { mode: InteractionMode; icon: typeof Move; label: string }[] = [
   { mode: 'pan', icon: Move, label: 'Pan' },
   { mode: 'zoom', icon: ZoomIn, label: 'Zoom' },
   { mode: 'windowLevel', icon: SunMedium, label: 'W/L' },
 ];
 
+const annotationTools: { mode: InteractionMode; icon: typeof Move; label: string }[] = [
+  { mode: 'length', icon: Ruler, label: 'Length' },
+  { mode: 'angle', icon: Triangle, label: 'Angle' },
+  { mode: 'ellipticalROI', icon: Circle, label: 'Elliptical ROI' },
+  { mode: 'rectangleROI', icon: Square, label: 'Rectangle ROI' },
+  { mode: 'arrowAnnotate', icon: ArrowUpRight, label: 'Arrow Annotate' },
+  { mode: 'probe', icon: Crosshair, label: 'Probe' },
+];
+
+const segmentationTools: { mode: InteractionMode; icon: typeof Move; label: string }[] = [
+  { mode: 'brush', icon: Paintbrush, label: 'Brush' },
+  { mode: 'eraser', icon: Eraser, label: 'Eraser' },
+  { mode: 'thresholdBrush', icon: SlidersHorizontal, label: 'Threshold Brush' },
+  { mode: 'scissors', icon: Scissors, label: 'Scissors' },
+  { mode: 'floodFill', icon: PaintBucket, label: 'Flood Fill' },
+];
+
 export default function ToolPalette({ activeMode, onModeChange, onReset, onDownload, canDownload, showMetadata, onToggleMetadata }: ToolPaletteProps) {
   return (
     <div className="flex items-center gap-1 bg-gray-800/80 backdrop-blur-sm rounded-lg p-1">
-      {tools.map(({ mode, icon: Icon, label }) => (
+      {navigationTools.map(({ mode, icon: Icon, label }) => (
         <button
           key={mode}
           onClick={() => onModeChange(mode)}
@@ -28,6 +49,36 @@ export default function ToolPalette({ activeMode, onModeChange, onReset, onDownl
           className={`p-2 rounded-md transition-colors ${
             activeMode === mode
               ? 'bg-blue-600 text-white'
+              : 'text-gray-400 hover:text-white hover:bg-gray-700'
+          }`}
+        >
+          <Icon size={16} />
+        </button>
+      ))}
+      <div className="w-px h-6 bg-gray-600 mx-1" />
+      {annotationTools.map(({ mode, icon: Icon, label }) => (
+        <button
+          key={mode}
+          onClick={() => onModeChange(mode)}
+          title={label}
+          className={`p-2 rounded-md transition-colors ${
+            activeMode === mode
+              ? 'bg-green-600 text-white'
+              : 'text-gray-400 hover:text-white hover:bg-gray-700'
+          }`}
+        >
+          <Icon size={16} />
+        </button>
+      ))}
+      <div className="w-px h-6 bg-gray-600 mx-1" />
+      {segmentationTools.map(({ mode, icon: Icon, label }) => (
+        <button
+          key={mode}
+          onClick={() => onModeChange(mode)}
+          title={label}
+          className={`p-2 rounded-md transition-colors ${
+            activeMode === mode
+              ? 'bg-purple-600 text-white'
               : 'text-gray-400 hover:text-white hover:bg-gray-700'
           }`}
         >

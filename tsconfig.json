@@ -27,7 +27,11 @@
       "@rendering/*": ["src/rendering/*"],
       "@services/*": ["src/services/*"],
       "@presentation/*": ["src/presentation/*"],
-      "@tools/*": ["src/tools/*"]
+      "@tools/*": ["src/tools/*"],
+      "@workers/*": ["src/workers/*"],
+      "@cache/*": ["src/cache/*"],
+      "@requestPool/*": ["src/requestPool/*"],
+      "@segmentation/*": ["src/segmentation/*"]
     }
   },
   "include": ["src"]
