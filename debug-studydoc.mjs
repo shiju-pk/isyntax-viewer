@@ -9,9 +9,9 @@ function readIntLE(arr, off) {
 }
 
 async function main() {
-  const studyUID = '2.16.840.1.114151.2783659648455710997644573319327333996010260330';
+  const studyUID = '1.2.840.113619.2.416.217486805674949780935391356923046466464';
   const stackId = 'PR3';
-  const url = `http://localhost:5000/ResultsAuthority/Study/${studyUID}/iSyntaxStudy?sid=${stackId}`;
+  const url = `http://localhost:5001/ResultsAuthority/Study/${studyUID}/iSyntaxStudy?sid=${stackId}`;
   
   console.log('Fetching:', url);
   const resp = await fetch(url);

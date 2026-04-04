@@ -44,4 +44,6 @@ export interface StudyDoc {
   studyXml: Document | null;
   imagesXml: Document | null;
   imageXmlList: Document[];
+  ancillaryXml: Document | null;
+  updateXml: Document | null;
 }
