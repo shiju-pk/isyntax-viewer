@@ -12,6 +12,10 @@ class InitImageResponse {
   dataLength: number;
   serverResponse: Uint8Array | null;
   coeffsOffset: number;
+  /** Raw JPEG/J2K compressed partition (mirrors C++ m_JPEGPartition). Null for iSyntax formats. */
+  compressedPartition: Uint8Array | null;
+  /** Length of the compressed partition in bytes (mirrors C++ m_JPEGPartitionLengthInBytes). */
+  compressedPartitionLength: number;
 
   constructor() {
     this.version = 0;
@@ -27,6 +31,8 @@ class InitImageResponse {
     this.dataLength = 0;
     this.serverResponse = null;
     this.coeffsOffset = 0;
+    this.compressedPartition = null;
+    this.compressedPartitionLength = 0;
   }
 
   onDecode(): void {

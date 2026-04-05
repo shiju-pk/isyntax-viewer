@@ -13,6 +13,8 @@ import { imageCache } from '../../cache/ImageCache';
 import { requestPool, RequestType } from '../../requestPool/RequestPoolManager';
 import { eventBus } from '../../rendering/events/EventBus';
 import { RenderingEvents } from '../../rendering/events/RenderingEvents';
+import { DecoderRegistry } from '../../codecs/DecoderRegistry';
+import type { DecodeInfo } from '../../codecs/IPixelDecoder';
 
 /** Shared worker pool — lazily initialised, shared across all ISyntaxImageService instances */
 let sharedWorkerPool: DecodeWorkerPool | null = null;
@@ -128,14 +130,23 @@ export class ISyntaxImageService {
         this._ensureMainThreadState(new Uint8Array(buffer));
       } catch (workerErr) {
         console.warn('Worker decode failed for InitImage, falling back to main thread:', workerErr);
-        decoded = this._decodeInitImageMainThread(new Uint8Array(buffer), rows, cols);
+        decoded = await this._decodeInitImageMainThread(new Uint8Array(buffer), rows, cols);
       }
     } else {
-      decoded = this._decodeInitImageMainThread(new Uint8Array(buffer), rows, cols);
+      decoded = await this._decodeInitImageMainThread(new Uint8Array(buffer), rows, cols);
     }
 
     // Update quality status
-    this._setQualityStatus(ImageQualityStatus.SUBRESOLUTION, decoded.pixelLevel);
+    const fmt = CodecConstants.instance.ImageFormat;
+    const format = decoded.format || '';
+    if (fmt.isJPEGFormat(format)) {
+      // JPEG/J2K: full resolution in one shot — no progressive levels
+      this._fullyLoaded = true;
+      this._cachedResult = decoded;
+      this._setQualityStatus(ImageQualityStatus.FULL_RESOLUTION, 0);
+    } else {
+      this._setQualityStatus(ImageQualityStatus.SUBRESOLUTION, decoded.pixelLevel);
+    }
 
     // Store in global image cache
     const cacheKey = `${this.imageId}:init`;
@@ -149,6 +160,11 @@ export class ISyntaxImageService {
   // ------------------------------------------------------------------
 
   async loadLevel(level: number): Promise<DecodedImage> {
+    // JPEG/J2K formats are fully decoded in initImage — no progressive levels
+    if (this._fullyLoaded && this._cachedResult) {
+      return this._cachedResult;
+    }
+
     if (!this._iSyntaxImage && !this.useWorkers) {
       throw new Error('Image not initialized. Call initImage() first.');
     }
@@ -276,16 +292,28 @@ export class ISyntaxImageService {
   }
 
   private _decodeResultToDecodedImage(result: DecodeResult): DecodedImage {
-    // Re-materialise the typed array from the transferred buffer respecting bytesPerPixel
-    const typedArray = result.bytesPerPixel === 4
-      ? new Int32Array(result.pixelData)
-      : new Int16Array(result.pixelData);
+    const fmt = CodecConstants.instance.ImageFormat;
+    const format = result.format || 'MONO';
+    let typedArray: ImageArray;
+
+    if (fmt.isJPEGFormat(format)) {
+      // JPEG/J2K: pixel data is raw 8-bit (or 16-bit for J2K >8bpp)
+      typedArray = result.bytesPerPixel === 2
+        ? new Uint16Array(result.pixelData)
+        : new Uint8Array(result.pixelData);
+    } else {
+      // iSyntax wavelet: pixel data is Int16 or Int32
+      typedArray = result.bytesPerPixel === 4
+        ? new Int32Array(result.pixelData)
+        : new Int16Array(result.pixelData);
+    }
+
     const imageData = this._convertToImageData(
       typedArray,
       result.rows,
       result.cols,
       result.planes,
-      result.format || 'MONO',
+      format,
     );
 
     return {
@@ -319,17 +347,25 @@ export class ISyntaxImageService {
     this._iSyntaxImage = new ISyntaxImage(imageFrame);
     this._processor = new ISyntaxProcessor(this._iSyntaxImage);
 
-    // Replay the InitImage through the processor so wavelet state is ready
-    const serverResponse = new ServerResponse(ResponseType.InitImage, iir.xformLevels, uint8Array);
-    this._processor.ComputeZoomLevelView(serverResponse, iir.xformLevels);
+    const fmt = CodecConstants.instance.ImageFormat;
+    if (fmt.isJPEGFormat(iir.format)) {
+      // JPEG/J2K — just init the image model; no wavelet state to replay
+      const serverResponse = new ServerResponse(ResponseType.InitImage, 0, uint8Array);
+      this._processor.ComputeZoomLevelView(serverResponse, 0);
+    } else {
+      // Replay the InitImage through the processor so wavelet state is ready
+      const serverResponse = new ServerResponse(ResponseType.InitImage, iir.xformLevels, uint8Array);
+      this._processor.ComputeZoomLevelView(serverResponse, iir.xformLevels);
+    }
   }
 
-  private _decodeInitImageMainThread(uint8Array: Uint8Array, rows: number, cols: number): DecodedImage {
+  private async _decodeInitImageMainThread(uint8Array: Uint8Array, rows: number, cols: number): Promise<DecodedImage> {
     const imageFrame: IImageFrame = { rows, columns: cols, imageId: this._instanceUID };
     this._iSyntaxImage = new ISyntaxImage(imageFrame);
     this._processor = new ISyntaxProcessor(this._iSyntaxImage);
 
     const iir = InitImageResponseParser.parse(uint8Array);
+    const fmt = CodecConstants.instance.ImageFormat;
 
     this._totalLevels = iir.xformLevels;
     this._currentLevel = iir.xformLevels;
@@ -340,6 +376,35 @@ export class ISyntaxImageService {
     this._iSyntaxImage = new ISyntaxImage(imageFrame);
     this._processor = new ISyntaxProcessor(this._iSyntaxImage);
 
+    if (fmt.isJPEGFormat(iir.format)) {
+      // JPEG/J2K: async WASM decode path
+      const serverResponse = new ServerResponse(ResponseType.InitImage, 0, uint8Array);
+      this._processor.ComputeZoomLevelView(serverResponse, 0);
+
+      const decoded = await this._processor.ProcessInitImageResponseAsync(iir);
+
+      const imageData = this._convertToImageData(
+        decoded.pixelData,
+        decoded.rows,
+        decoded.cols,
+        decoded.planes,
+        iir.format,
+      );
+
+      return {
+        imageData,
+        pixelLevel: 0,
+        rows: decoded.rows,
+        cols: decoded.cols,
+        planes: decoded.planes,
+        format: iir.format,
+        rawPixelData: decoded.pixelData,
+        rescaleSlope: this._dicomMetadata?.rescaleSlope,
+        rescaleIntercept: this._dicomMetadata?.rescaleIntercept,
+      };
+    }
+
+    // iSyntax wavelet path (unchanged)
     const serverResponse = new ServerResponse(ResponseType.InitImage, this._totalLevels, uint8Array);
     const zlv = this._processor.ComputeZoomLevelView(serverResponse, this._totalLevels);
 
@@ -458,27 +523,42 @@ export class ISyntaxImageService {
         rgba[idx + 3] = 255;
       }
     } else {
-      // YBR → RGB conversion (3-plane interleaved)
-      const totalPixels = rows * cols;
-      const yPlane = pixelData.subarray(0, totalPixels);
-      const cbPlane = pixelData.subarray(totalPixels, totalPixels * 2);
-      const crPlane = pixelData.subarray(totalPixels * 2, totalPixels * 3);
+      const fmtConst = CodecConstants.instance.ImageFormat;
 
-      for (let i = 0; i < totalPixels; i++) {
-        const y = yPlane[i];
-        const cb = cbPlane[i];
-        const cr = crPlane[i];
+      if (fmtConst.isJPEGFormat(format)) {
+        // JPEG / J2K: pixel-interleaved RGB (R,G,B,R,G,B,...) from WASM decoder
+        const totalPixels = rows * cols;
+        for (let i = 0; i < totalPixels; i++) {
+          const srcIdx = i * 3;
+          const dstIdx = i * 4;
+          rgba[dstIdx]     = pixelData[srcIdx];
+          rgba[dstIdx + 1] = pixelData[srcIdx + 1];
+          rgba[dstIdx + 2] = pixelData[srcIdx + 2];
+          rgba[dstIdx + 3] = 255;
+        }
+      } else {
+        // iSyntax YBR → RGB conversion (3-plane interleaved)
+        const totalPixels = rows * cols;
+        const yPlane = pixelData.subarray(0, totalPixels);
+        const cbPlane = pixelData.subarray(totalPixels, totalPixels * 2);
+        const crPlane = pixelData.subarray(totalPixels * 2, totalPixels * 3);
 
-        // YCbCr to RGB conversion (ITU-R BT.601)
-        const r = y + 1.402 * cr;
-        const g = y - 0.344136 * cb - 0.714136 * cr;
-        const b = y + 1.772 * cb;
+        for (let i = 0; i < totalPixels; i++) {
+          const y = yPlane[i];
+          const cb = cbPlane[i];
+          const cr = crPlane[i];
 
-        const idx = i * 4;
-        rgba[idx] = Math.max(0, Math.min(255, r)) | 0;
-        rgba[idx + 1] = Math.max(0, Math.min(255, g)) | 0;
-        rgba[idx + 2] = Math.max(0, Math.min(255, b)) | 0;
-        rgba[idx + 3] = 255;
+          // YCbCr to RGB conversion (ITU-R BT.601)
+          const r = y + 1.402 * cr;
+          const g = y - 0.344136 * cb - 0.714136 * cr;
+          const b = y + 1.772 * cb;
+
+          const idx = i * 4;
+          rgba[idx] = Math.max(0, Math.min(255, r)) | 0;
+          rgba[idx + 1] = Math.max(0, Math.min(255, g)) | 0;
+          rgba[idx + 2] = Math.max(0, Math.min(255, b)) | 0;
+          rgba[idx + 3] = 255;
+        }
       }
     }
 

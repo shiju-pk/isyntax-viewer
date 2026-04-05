@@ -16,25 +16,38 @@ class ISyntaxImage extends PyramidImage {
   initializeFromIIR(iir: InitImageResponse): void {
     this._iir = iir;
     this.dtsImageVersion = iir.version;
-    if (iir.coeffBitDepth <= 16) {
-      this.bytesPerPixel = 2;
+
+    const fmt = CodecConstants.instance.ImageFormat;
+
+    if (fmt.isJPEGFormat(iir.format)) {
+      // JPEG / JPEG 2000: full-resolution in a single InitImage response.
+      // No wavelet levels — decoded to final pixels directly.
+      this.planes = fmt.isColor(iir.format) ? 3 : 1;
+      // JPEG = 8-bit always; J2K mono >8-bit → 2 bytes, else 1
+      this.bytesPerPixel = 1;
+      this.lowestPixelLevel = 0;
     } else {
-      this.bytesPerPixel = 4;
-    }
+      // iSyntax wavelet formats
+      if (iir.coeffBitDepth <= 16) {
+        this.bytesPerPixel = 2;
+      } else {
+        this.bytesPerPixel = 4;
+      }
 
-    if (
-      iir.format === CodecConstants.instance.ImageFormat.YBRF8 ||
-      iir.format === CodecConstants.instance.ImageFormat.YBRFE ||
-      iir.format === CodecConstants.instance.ImageFormat.YBRP8 ||
-      iir.format === CodecConstants.instance.ImageFormat.YBRPE
-    ) {
-      this.planes = 3;
-    }
+      if (
+        iir.format === fmt.YBRF8 ||
+        iir.format === fmt.YBRFE ||
+        iir.format === fmt.YBRP8 ||
+        iir.format === fmt.YBRPE
+      ) {
+        this.planes = 3;
+      }
 
-    if (iir.levelChecksums) {
-      this.setCheckSum(iir.levelChecksums);
+      if (iir.levelChecksums) {
+        this.setCheckSum(iir.levelChecksums);
+      }
+      this.lowestPixelLevel = iir.xformLevels;
     }
-    this.lowestPixelLevel = iir.xformLevels;
   }
   getImageFormat(): string | undefined {
     return this._iir ? this._iir.format : undefined;

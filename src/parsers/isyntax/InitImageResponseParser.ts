@@ -6,6 +6,7 @@ class InitImageResponseParser {
 
   static parse(initImageServerResponse: Uint8Array): InitImageResponse {
     const iir = new InitImageResponse();
+    const fmt = CodecConstants.instance.ImageFormat;
 
     const iirDataView = new DataView(
       initImageServerResponse.buffer,
@@ -14,22 +15,15 @@ class InitImageResponseParser {
     );
     let pos = 0;
 
+    // --- Common header (all formats) ---
     iir.version = iirDataView.getInt32(pos, true);
     pos += 4;
 
-    iir.format = CodecConstants.instance.ImageFormat.getImageFormat(
-      iirDataView.getInt32(pos, true)
-    );
-    // only MONO and RGB are supported currently.
-    if (
-      iir.format === CodecConstants.instance.ImageFormat.MONO ||
-      iir.format === CodecConstants.instance.ImageFormat.YBRF8 ||
-      iir.format === CodecConstants.instance.ImageFormat.YBRFE ||
-      iir.format === CodecConstants.instance.ImageFormat.YBRP8 ||
-      iir.format === CodecConstants.instance.ImageFormat.YBRPE
-    ) {
-      pos += 4;
+    iir.format = fmt.getImageFormat(iirDataView.getInt32(pos, true));
+    pos += 4;
 
+    if (fmt.isISyntaxFormat(iir.format)) {
+      // --- iSyntax wavelet format (MONO / YBR*) ---
       iir.rows = iirDataView.getInt16(pos, true);
       pos += 2;
 
@@ -65,6 +59,31 @@ class InitImageResponseParser {
 
       iir.serverResponse = initImageServerResponse;
       iir.coeffsOffset = pos;
+
+    } else if (fmt.isJPEGFormat(iir.format)) {
+      // --- JPEG / JPEG 2000 format ---
+      // Header continues with rows, cols, then compressed partition:
+      //   [rows:i16] [cols:i16] [partitionLength:u32] [raw JPEG/J2K bytes]
+      iir.rows = iirDataView.getInt16(pos, true);
+      pos += 2;
+
+      iir.cols = iirDataView.getInt16(pos, true);
+      pos += 2;
+
+      // Compressed partition: 4-byte length prefix then raw compressed data
+      const partitionLength = iirDataView.getUint32(pos, true);
+      pos += 4;
+
+      if (partitionLength > 0 && pos + partitionLength <= initImageServerResponse.byteLength) {
+        iir.compressedPartition = initImageServerResponse.subarray(pos, pos + partitionLength);
+        iir.compressedPartitionLength = partitionLength;
+      }
+
+      // JPEG/J2K has no wavelet levels — full resolution in one shot
+      iir.xformLevels = 0;
+      iir.coeffBitDepth = 0;
+      iir.serverResponse = initImageServerResponse;
+
     } else {
       throw new Error('Unsupported image format: ' + iir.format);
     }

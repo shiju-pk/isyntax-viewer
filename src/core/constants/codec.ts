@@ -27,6 +27,35 @@ export class ImageFormat {
   getImageFormat(intFormat: number): string {
     return this._imageFormatArray[intFormat];
   }
+
+  /** Returns true for JPEG and JPEG 2000 formats (JPEG_RGB, JPEG_MONO, J2K_RGB, J2K_MONO). */
+  isJPEGFormat(fmt: string): boolean {
+    return fmt === this.JPEG_RGB || fmt === this.JPEG_MONO ||
+           fmt === this.J2K_RGB  || fmt === this.J2K_MONO;
+  }
+
+  /** Returns true for native iSyntax wavelet formats (MONO, YBRF8, YBRFE, YBRP8, YBRPE). */
+  isISyntaxFormat(fmt: string): boolean {
+    return fmt === this.MONO   || fmt === this.YBRF8 || fmt === this.YBRFE ||
+           fmt === this.YBRP8  || fmt === this.YBRPE;
+  }
+
+  /** Returns true for JPEG 2000 formats only. */
+  isJ2KFormat(fmt: string): boolean {
+    return fmt === this.J2K_RGB || fmt === this.J2K_MONO;
+  }
+
+  /** Returns true for color formats (3-plane). */
+  isColor(fmt: string): boolean {
+    return fmt === this.YBRF8    || fmt === this.YBRFE   ||
+           fmt === this.YBRP8    || fmt === this.YBRPE   ||
+           fmt === this.JPEG_RGB || fmt === this.J2K_RGB;
+  }
+
+  /** Returns the number of pixel planes for the given format. */
+  getPlaneCount(fmt: string): number {
+    return this.isColor(fmt) ? 3 : 1;
+  }
 }
 
 /** Represents different coder codes. */
