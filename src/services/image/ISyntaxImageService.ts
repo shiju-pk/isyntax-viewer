@@ -122,15 +122,25 @@ export class ISyntaxImageService {
 
     if (this.useWorkers) {
       try {
-        // Copy buffer before worker transfer (buffer is detached after transfer)
-        const workerBuffer = buffer.slice(0);
-        decoded = await this._decodeInitImageInWorker(workerBuffer, rows, cols);
-        // Also initialise main-thread processor state so the fallback path
-        // in loadLevel() works if the worker later becomes unavailable.
+        // Parse the small header on main thread BEFORE transferring buffer
+        // to init main-thread state (needed for fallback in loadLevel).
         this._ensureMainThreadState(new Uint8Array(buffer));
+        // Transfer the original buffer to the worker (zero-copy, no .slice())
+        decoded = await this._decodeInitImageInWorker(buffer, rows, cols);
       } catch (workerErr) {
         console.warn('Worker decode failed for InitImage, falling back to main thread:', workerErr);
-        decoded = await this._decodeInitImageMainThread(new Uint8Array(buffer), rows, cols);
+        // Buffer may be detached after transfer attempt; re-fetch if needed
+        if (this._iSyntaxImage && this._processor) {
+          // Main-thread state was already initialized — use cached processor
+          const zlv = this._iSyntaxImage.getZoomLevelView(this._totalLevels);
+          if (zlv) {
+            decoded = this._zlvToImageData(zlv);
+          } else {
+            throw workerErr; // Cannot recover without buffer
+          }
+        } else {
+          throw workerErr;
+        }
       }
     } else {
       decoded = await this._decodeInitImageMainThread(new Uint8Array(buffer), rows, cols);
@@ -194,11 +204,15 @@ export class ISyntaxImageService {
 
     if (this.useWorkers) {
       try {
-        const workerBuffer = buffer.slice(0);
-        decoded = await this._decodeCoefficientInWorker(workerBuffer, level);
+        // Transfer the original buffer to the worker (zero-copy, no .slice())
+        decoded = await this._decodeCoefficientInWorker(buffer, level);
       } catch (workerErr) {
         console.warn(`Worker decode failed for level ${level}, falling back to main thread:`, workerErr);
-        decoded = this._decodeCoefficientMainThread(new Uint8Array(buffer), level);
+        // Buffer is detached after transfer — re-fetch for main-thread fallback
+        const refetchResponse = await fetch(url);
+        if (!refetchResponse.ok) throw workerErr;
+        const refetchBuffer = await refetchResponse.arrayBuffer();
+        decoded = this._decodeCoefficientMainThread(new Uint8Array(refetchBuffer), level);
       }
     } else {
       decoded = this._decodeCoefficientMainThread(new Uint8Array(buffer), level);
@@ -497,26 +511,48 @@ export class ISyntaxImageService {
       let wc = meta?.windowCenter;
 
       if (ww == null || wc == null) {
-        let min = Infinity;
-        let max = -Infinity;
-        for (let i = 0; i < totalPixels; i++) {
-          const v = pixelData[i] * slope + intercept;
-          if (v < min) min = v;
-          if (v > max) max = v;
+        // Single pass: find min/max of raw pixel values (pre-modality)
+        let rawMin = pixelData[0];
+        let rawMax = rawMin;
+        for (let i = 1; i < totalPixels; i++) {
+          const v = pixelData[i];
+          if (v < rawMin) rawMin = v;
+          else if (v > rawMax) rawMax = v;
         }
-        ww = max - min || 1;
-        wc = (max + min) / 2;
+        const minMod = rawMin * slope + intercept;
+        const maxMod = rawMax * slope + intercept;
+        ww = maxMod - minMod || 1;
+        wc = (maxMod + minMod) / 2;
       }
 
       const lower = wc - ww / 2;
-      const upper = wc + ww / 2;
-      const range = upper - lower || 1;
+      const range = (wc + ww / 2) - lower || 1;
 
+      // Build a LUT indexed by raw pixel value for O(1) per-pixel windowing.
+      // Determine raw pixel range to size the LUT appropriately.
+      let rawMin = pixelData[0];
+      let rawMax = rawMin;
+      for (let i = 1; i < totalPixels; i++) {
+        const v = pixelData[i];
+        if (v < rawMin) rawMin = v;
+        else if (v > rawMax) rawMax = v;
+      }
+
+      const lutSize = rawMax - rawMin + 1;
+      const invRange = 255 / range;
+      // Use Uint8Array for LUT — clamped to [0, 255]
+      const lut = new Uint8Array(lutSize);
+      for (let i = 0; i < lutSize; i++) {
+        const mv = (rawMin + i) * slope + intercept;
+        const norm = (mv - lower) * invRange;
+        lut[i] = norm > 255 ? 255 : norm < 0 ? 0 : norm | 0;
+      }
+
+      // Apply LUT — single array lookup per pixel, no FP math
+      const lutOffset = -rawMin; // shift raw value to 0-based LUT index
       for (let i = 0; i < totalPixels; i++) {
-        const modalityValue = pixelData[i] * slope + intercept;
-        const normalized = ((modalityValue - lower) / range) * 255;
-        const val = Math.max(0, Math.min(255, normalized)) | 0;
-        const idx = i * 4;
+        const val = lut[pixelData[i] + lutOffset];
+        const idx = i << 2;
         rgba[idx] = val;
         rgba[idx + 1] = val;
         rgba[idx + 2] = val;
@@ -530,7 +566,7 @@ export class ISyntaxImageService {
         const totalPixels = rows * cols;
         for (let i = 0; i < totalPixels; i++) {
           const srcIdx = i * 3;
-          const dstIdx = i * 4;
+          const dstIdx = i << 2;
           rgba[dstIdx]     = pixelData[srcIdx];
           rgba[dstIdx + 1] = pixelData[srcIdx + 1];
           rgba[dstIdx + 2] = pixelData[srcIdx + 2];
@@ -553,10 +589,10 @@ export class ISyntaxImageService {
           const g = y - 0.344136 * cb - 0.714136 * cr;
           const b = y + 1.772 * cb;
 
-          const idx = i * 4;
-          rgba[idx] = Math.max(0, Math.min(255, r)) | 0;
-          rgba[idx + 1] = Math.max(0, Math.min(255, g)) | 0;
-          rgba[idx + 2] = Math.max(0, Math.min(255, b)) | 0;
+          const idx = i << 2;
+          rgba[idx] = r > 255 ? 255 : r < 0 ? 0 : r | 0;
+          rgba[idx + 1] = g > 255 ? 255 : g < 0 ? 0 : g | 0;
+          rgba[idx + 2] = b > 255 ? 255 : b < 0 ? 0 : b | 0;
           rgba[idx + 3] = 255;
         }
       }

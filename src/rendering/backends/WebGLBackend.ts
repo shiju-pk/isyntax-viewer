@@ -115,6 +115,7 @@ export class WebGLBackend implements IRendererBackend {
   private windowWidth = 256;
   private applyVOI = false;
   private invert = false;
+  private _transformMatrix = new Float32Array(9);
 
   init(canvas: HTMLCanvasElement): void {
     this.canvas = canvas;
@@ -270,15 +271,14 @@ export class WebGLBackend implements IRendererBackend {
     const flipX = transform.scaleX < 0 ? -1 : 1;
     const flipY = transform.scaleY < 0 ? -1 : 1;
 
-    // Column-major 3x3 matrix
-    const matrix = new Float32Array([
-      sx * flipX, 0,          0,
-      0,          sy * flipY, 0,
-      tx,         ty,         1,
-    ]);
+    // Column-major 3x3 matrix (reuse pre-allocated array)
+    const m = this._transformMatrix;
+    m[0] = sx * flipX; m[1] = 0;          m[2] = 0;
+    m[3] = 0;          m[4] = sy * flipY; m[5] = 0;
+    m[6] = tx;         m[7] = ty;         m[8] = 1;
 
     gl.useProgram(this.program);
-    gl.uniformMatrix3fv(this.uniforms.u_transform, false, matrix);
+    gl.uniformMatrix3fv(this.uniforms.u_transform, false, m);
     gl.uniform1i(this.uniforms.u_image, 0);
     gl.uniform1f(this.uniforms.u_windowCenter, this.windowCenter);
     gl.uniform1f(this.uniforms.u_windowWidth, this.windowWidth);

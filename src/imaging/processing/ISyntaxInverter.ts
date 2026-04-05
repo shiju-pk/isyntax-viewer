@@ -2,6 +2,24 @@ import type { ImageArray } from '../../core/types';
 import type { ISyntaxImage } from '../model/ISyntaxImage';
 import type { ZoomLevelView } from '../model/ZoomLevelView';
 
+// Module-level grow-only pool for hTempArray to avoid per-call allocations
+let _pooledInt16: Int16Array | null = null;
+let _pooledInt32: Int32Array | null = null;
+
+function getPooledHTemp(rows: number, is16bit: boolean): ImageArray {
+  if (is16bit) {
+    if (!_pooledInt16 || _pooledInt16.length < rows) {
+      _pooledInt16 = new Int16Array(rows);
+    }
+    return _pooledInt16;
+  } else {
+    if (!_pooledInt32 || _pooledInt32.length < rows) {
+      _pooledInt32 = new Int32Array(rows);
+    }
+    return _pooledInt32;
+  }
+}
+
 class ISyntaxInvertor {
   static z5_3_synthesize(
     outputImage: ImageArray,
@@ -62,9 +80,9 @@ class ISyntaxInvertor {
     colsOfLows = ((cols + 1) / 2) | 0;
 
     if (outputImage instanceof Int16Array) {
-      hTempArray = new Int16Array(new ArrayBuffer(rows << 1));
+      hTempArray = getPooledHTemp(rows, true);
     } else if (outputImage instanceof Int32Array) {
-      hTempArray = new Int32Array(new ArrayBuffer(rows << 2));
+      hTempArray = getPooledHTemp(rows, false);
     } else {
       throw new Error(`Invalid buffer type: ${pixelLevel}, ${imageUID}`);
     }

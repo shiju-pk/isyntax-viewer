@@ -36,82 +36,6 @@ class RiceAndSnakeDecoder {
       offset: number,
       index: number;
 
-    const decodeBlock = () => {
-      do {
-        if (maskBits !== bps) {
-          mask = binaryReader.readBits(maskBits);
-          sVal = binaryReader.scanToNext1();
-          if (sVal & 0x01) {
-            sVal = ~sVal >> 1;
-          } else {
-            sVal = sVal >> 1;
-          }
-          currentValue = (sVal << maskBits) | mask;
-        } else {
-          sign = binaryReader.readBit();
-          currentValue = binaryReader.readBits(bps);
-          if (sign) {
-            currentValue = -currentValue;
-          }
-        }
-
-        if (rowIsEven) {
-          decodedBuffer[outputIndex++] = previousValue =
-            currentValue + previousValue;
-          checksum += previousValue;
-          if (--colCount === 0) {
-            rowIsEven = false;
-            colCount = cols;
-          }
-        } else {
-          decodedBuffer[outputIndex] = currentValue;
-          checksum += currentValue;
-          if (--colCount) {
-            ++outputIndex;
-          } else {
-            rowIsEven = true;
-            colCount = cols;
-            colIndexOfOddRow = outputIndex++;
-            do {
-              previousValueCopy = decodedBuffer[colIndexOfOddRow--] +=
-                previousValue;
-              checksum += previousValue;
-              previousValue = previousValueCopy;
-            } while (--colCount);
-            colCount = cols;
-          }
-        }
-      } while (--sampleCount);
-    };
-
-    const decodePlane = () => {
-      checksum = 0;
-      previousValueCopy = 0;
-      bps = binaryReader.readBits(5);
-      firstBps = binaryReader.readBits(5);
-      firstValue = binaryReader.readSignedValue(firstBps);
-      blockIndex = numberOfCodedBlocksWithDefaultSampleCount;
-      sampleCount = 0;
-      outputIndex = 0;
-      maskBits = 0;
-      mask = 0;
-      sVal = 0;
-      colCount = cols;
-      rowIsEven = true;
-      previousValue = firstValue;
-
-      do {
-        maskBits = binaryReader.readBits(5);
-        sampleCount = defaultSamplesPerBlock;
-        decodeBlock();
-      } while (--blockIndex);
-
-      if ((sampleCount = numberOfElementsInOutput & 0xf)) {
-        maskBits = binaryReader.readBits(5);
-        decodeBlock();
-      }
-    };
-
     const pixelLevel = zlv.pixelLevel;
     const cols = zlv.levelColumns;
     const rows = zlv.levelRows;
@@ -131,7 +55,7 @@ class RiceAndSnakeDecoder {
     }
     binaryReader = new DataViewBinaryReader(iir.serverResponse, offset);
 
-    const dataLength = [];
+    const dataLength = new Int32Array(planes);
     for (index = 0; index < planes; ++index) {
       dataLength[index] = binaryReader.readInt32();
       offset += 4;
@@ -151,7 +75,99 @@ class RiceAndSnakeDecoder {
       for (planeIndex = 0; planeIndex < planes; ++planeIndex) {
         decodedBuffer = decodedBufferArray[planeIndex];
         numberOfElementsInOutput = numberOfElementsInOutputPerPlane;
-        decodePlane();
+
+        // --- inlined decodePlane ---
+        checksum = 0;
+        previousValueCopy = 0;
+        bps = binaryReader.readBits(5);
+        firstBps = binaryReader.readBits(5);
+        firstValue = binaryReader.readSignedValue(firstBps);
+        blockIndex = numberOfCodedBlocksWithDefaultSampleCount;
+        sampleCount = 0;
+        outputIndex = 0;
+        maskBits = 0;
+        mask = 0;
+        sVal = 0;
+        colCount = cols;
+        rowIsEven = true;
+        previousValue = firstValue;
+
+        do {
+          maskBits = binaryReader.readBits(5);
+          sampleCount = defaultSamplesPerBlock;
+          // --- inlined decodeBlock ---
+          do {
+            if (maskBits !== bps) {
+              mask = binaryReader.readBits(maskBits);
+              sVal = binaryReader.scanToNext1();
+              currentValue = (sVal & 1) ? (~sVal >> 1) : (sVal >> 1);
+              currentValue = (currentValue << maskBits) | mask;
+            } else {
+              sign = binaryReader.readBit();
+              currentValue = binaryReader.readBits(bps);
+              if (sign) currentValue = -currentValue;
+            }
+            if (rowIsEven) {
+              decodedBuffer[outputIndex++] = previousValue = currentValue + previousValue;
+              checksum += previousValue;
+              if (--colCount === 0) { rowIsEven = false; colCount = cols; }
+            } else {
+              decodedBuffer[outputIndex] = currentValue;
+              checksum += currentValue;
+              if (--colCount) {
+                ++outputIndex;
+              } else {
+                rowIsEven = true;
+                colCount = cols;
+                colIndexOfOddRow = outputIndex++;
+                do {
+                  previousValueCopy = decodedBuffer[colIndexOfOddRow--] += previousValue;
+                  checksum += previousValue;
+                  previousValue = previousValueCopy;
+                } while (--colCount);
+                colCount = cols;
+              }
+            }
+          } while (--sampleCount);
+        } while (--blockIndex);
+
+        if ((sampleCount = numberOfElementsInOutput & 0xf)) {
+          maskBits = binaryReader.readBits(5);
+          // --- inlined decodeBlock (non-default block) ---
+          do {
+            if (maskBits !== bps) {
+              mask = binaryReader.readBits(maskBits);
+              sVal = binaryReader.scanToNext1();
+              currentValue = (sVal & 1) ? (~sVal >> 1) : (sVal >> 1);
+              currentValue = (currentValue << maskBits) | mask;
+            } else {
+              sign = binaryReader.readBit();
+              currentValue = binaryReader.readBits(bps);
+              if (sign) currentValue = -currentValue;
+            }
+            if (rowIsEven) {
+              decodedBuffer[outputIndex++] = previousValue = currentValue + previousValue;
+              checksum += previousValue;
+              if (--colCount === 0) { rowIsEven = false; colCount = cols; }
+            } else {
+              decodedBuffer[outputIndex] = currentValue;
+              checksum += currentValue;
+              if (--colCount) {
+                ++outputIndex;
+              } else {
+                rowIsEven = true;
+                colCount = cols;
+                colIndexOfOddRow = outputIndex++;
+                do {
+                  previousValueCopy = decodedBuffer[colIndexOfOddRow--] += previousValue;
+                  checksum += previousValue;
+                  previousValue = previousValueCopy;
+                } while (--colCount);
+                colCount = cols;
+              }
+            }
+          } while (--sampleCount);
+        }
 
         if (
           planeIndex === 0 &&

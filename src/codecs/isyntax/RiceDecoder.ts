@@ -30,12 +30,12 @@ class RiceDecoder {
       lhOffset: number,
       hlOffset: number,
       hhOffset: number,
-      offset: number,
+      offset: number = 0,
       coderCode: number,
       lhbps: number,
       hlbps: number,
       hhbps: number,
-      bps: number,
+      bps: number = 0,
       defaultSamplesPerBlock: number,
       rowCount: number,
       quadrantCount: number,
@@ -49,7 +49,6 @@ class RiceDecoder {
       sVal: number,
       blockIndex: number,
       sign: number,
-      dataLength: number[],
       index: number,
       planeIndex: number,
       planeOffset: number;
@@ -57,30 +56,6 @@ class RiceDecoder {
     const rows = zlv.levelRows;
     const cols = zlv.levelColumns;
     const planes = zlv.planes;
-
-    function decodeBlock() {
-      do {
-        if (maskBits !== bps) {
-          mask = binaryReader.readBits(maskBits);
-          sVal = binaryReader.scanToNext1();
-          if (sVal & 0x01) {
-            // odd value, which means the actual value is negative
-            sVal = ~sVal >> 1; // equivalent to: sval = -(sval+1)/2
-          } else {
-            sVal = sVal >> 1; // equivalent to: sval = sval/2
-          }
-          decodedBuffer[offset++] = (sVal << maskBits) | mask;
-        } else {
-          // TODO: Test maskBits === bps
-          sign = binaryReader.readBit();
-          sVal = binaryReader.readBits(bps);
-          if (sign) {
-            sVal = -sVal;
-          }
-          decodedBuffer[offset++] = sVal;
-        }
-      } while (--sampleCount);
-    }
 
     const iir = iSyntaxImage.getIIR();
     if (!iir) {
@@ -127,6 +102,7 @@ class RiceDecoder {
     partitionIndex = 0;
     let partitionRows = partitionSize;
     let partitionCols = partitionSize;
+    const dataLength = new Int32Array(planes);
     outputSpan = 3 * cols;
     partitionRowStartInBuffer = 0;
     hlStart = cols;
@@ -168,7 +144,6 @@ class RiceDecoder {
         partitionStartOffset += partitionLength[partitionIndex];
 
         // Get partition header, which is the dataLength of each plane.
-        dataLength = [];
         for (index = 0; index < planes; ++index) {
           // Read data length, 4 bytes
           dataLength[index] = binaryReader.readInt32();
@@ -234,13 +209,35 @@ class RiceDecoder {
                 do {
                   maskBits = binaryReader.readBits(5);
                   sampleCount = defaultSamplesPerBlock;
-                  decodeBlock();
+                  do {
+                    if (maskBits !== bps) {
+                      mask = binaryReader.readBits(maskBits);
+                      sVal = binaryReader.scanToNext1();
+                      sVal = (sVal & 1) ? (~sVal >> 1) : (sVal >> 1);
+                      decodedBuffer[offset++] = (sVal << maskBits) | mask;
+                    } else {
+                      sign = binaryReader.readBit();
+                      sVal = binaryReader.readBits(bps);
+                      decodedBuffer[offset++] = sign ? -sVal : sVal;
+                    }
+                  } while (--sampleCount);
                 } while (--blockIndex);
               }
               if ((sampleCount = sampleCountInNonDefaultSizedBlock)) {
                 // We are dealing with the last block that does not have the default number of samples.
                 maskBits = binaryReader.readBits(5);
-                decodeBlock();
+                do {
+                  if (maskBits !== bps) {
+                    mask = binaryReader.readBits(maskBits);
+                    sVal = binaryReader.scanToNext1();
+                    sVal = (sVal & 1) ? (~sVal >> 1) : (sVal >> 1);
+                    decodedBuffer[offset++] = (sVal << maskBits) | mask;
+                  } else {
+                    sign = binaryReader.readBit();
+                    sVal = binaryReader.readBits(bps);
+                    decodedBuffer[offset++] = sign ? -sVal : sVal;
+                  }
+                } while (--sampleCount);
               }
             } while (--quadrantCount);
 

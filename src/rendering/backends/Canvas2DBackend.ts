@@ -15,9 +15,13 @@ export class Canvas2DBackend implements IRendererBackend {
     const dpr = window.devicePixelRatio || 1;
     const displayWidth = this.canvas.clientWidth;
     const displayHeight = this.canvas.clientHeight;
+    const targetW = (displayWidth * dpr) | 0;
+    const targetH = (displayHeight * dpr) | 0;
 
-    this.canvas.width = displayWidth * dpr;
-    this.canvas.height = displayHeight * dpr;
+    if (this.canvas.width !== targetW || this.canvas.height !== targetH) {
+      this.canvas.width = targetW;
+      this.canvas.height = targetH;
+    }
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const [r, g, b] = color;

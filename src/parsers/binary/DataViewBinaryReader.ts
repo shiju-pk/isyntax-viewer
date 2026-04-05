@@ -82,47 +82,31 @@ class DataViewBinaryReader {
   }
 
   readBits(numberOfBits: number): number {
-    let value = 0;
-    let restOfTheBitsValue;
-    let numberOfAvailableBits;
-    let currentValue;
-    if (numberOfBits) {
-      if (numberOfBits <= this._numberOfAvailableBits) {
-        currentValue = this._currentValue;
-        value = currentValue & ((1 << numberOfBits) - 1);
-        this._currentValue = currentValue >>> numberOfBits;
-        this._numberOfAvailableBits -= numberOfBits;
-      } else {
-        numberOfAvailableBits = this._numberOfAvailableBits;
-        if (numberOfAvailableBits) {
-          value = this._currentValue & ((1 << numberOfAvailableBits) - 1);
-          this._readNextValue();
-          restOfTheBitsValue = this.readBits(
-            numberOfBits - numberOfAvailableBits
-          );
-          value = (restOfTheBitsValue << numberOfAvailableBits) | value;
-        } else {
-          this._readNextValue();
-          value = this.readBits(numberOfBits);
-        }
-      }
+    if (numberOfBits === 0) return 0;
+    if (numberOfBits <= this._numberOfAvailableBits) {
+      const value = this._currentValue & ((1 << numberOfBits) - 1);
+      this._currentValue = this._currentValue >>> numberOfBits;
+      this._numberOfAvailableBits -= numberOfBits;
+      return value;
     }
-    return value;
+    // Cross-boundary: grab remaining bits, refill, grab rest
+    const lowBits = this._numberOfAvailableBits;
+    const lowValue = lowBits ? (this._currentValue & ((1 << lowBits) - 1)) : 0;
+    this._readNextValue();
+    const highBits = numberOfBits - lowBits;
+    const highValue = this._currentValue & ((1 << highBits) - 1);
+    this._currentValue = this._currentValue >>> highBits;
+    this._numberOfAvailableBits -= highBits;
+    return (highValue << lowBits) | lowValue;
   }
 
   readBit(): number {
-    let value = 0;
-    let currentValue;
-
-    if (this._numberOfAvailableBits) {
-      currentValue = this._currentValue;
-      value = currentValue & 0x01;
-      this._currentValue = currentValue >>> 1;
-      --this._numberOfAvailableBits;
-    } else {
+    if (this._numberOfAvailableBits === 0) {
       this._readNextValue();
-      value = this.readBit();
     }
+    const value = this._currentValue & 1;
+    this._currentValue = this._currentValue >>> 1;
+    --this._numberOfAvailableBits;
     return value;
   }
 
@@ -149,36 +133,23 @@ class DataViewBinaryReader {
 
   scanToNext1(): number {
     let numberOfTrailingZeros = 0;
-    let bitsToRead;
-    let value;
-    let currentValue;
-    if (this._numberOfAvailableBits) {
-      bitsToRead = 0;
+    for (;;) {
+      if (this._numberOfAvailableBits === 0) {
+        if (!this._readNextValue()) return numberOfTrailingZeros;
+      }
       if (this._currentValue) {
-        currentValue = this._currentValue;
-        if (currentValue & 0x1) {
-          --this._numberOfAvailableBits;
-          this._currentValue = currentValue >>> 1;
-        } else {
-          value = (currentValue ^ (currentValue - 1)) >>> 1;
-          for (; value; ++numberOfTrailingZeros) {
-            value = value >>> 1;
-          }
-          bitsToRead = numberOfTrailingZeros + 1;
-          this._numberOfAvailableBits -= bitsToRead;
-          this._currentValue = currentValue >>> bitsToRead;
-        }
-      } else {
-        numberOfTrailingZeros = this._numberOfAvailableBits;
-        this._readNextValue();
-        numberOfTrailingZeros += this.scanToNext1();
+        // O(1) CTZ via Math.clz32: ctz(x) = 31 - clz(x & -x)
+        const isolated = this._currentValue & (-this._currentValue);
+        const ctz = 31 - Math.clz32(isolated);
+        const bitsToRead = ctz + 1; // include the 1-bit itself
+        this._numberOfAvailableBits -= bitsToRead;
+        this._currentValue = this._currentValue >>> bitsToRead;
+        return numberOfTrailingZeros + ctz;
       }
-    } else {
-      if (this._readNextValue()) {
-        numberOfTrailingZeros = this.scanToNext1();
-      }
+      // Entire word is zero — consume all bits and continue
+      numberOfTrailingZeros += this._numberOfAvailableBits;
+      this._numberOfAvailableBits = 0;
     }
-    return numberOfTrailingZeros;
   }
 }
 

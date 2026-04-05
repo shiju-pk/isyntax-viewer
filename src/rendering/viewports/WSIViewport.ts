@@ -19,6 +19,8 @@ export class WSIViewport extends Viewport {
   private imageInfo: WSIImageInfo | null = null;
   private tileManager: TileManager | null = null;
   private offscreenTileCanvas: OffscreenCanvas | null = null;
+  /** Parallel cache: TileKey → ImageBitmap for GPU-accelerated tile rendering */
+  private bitmapCache = new Map<string, ImageBitmap>();
 
   static override get useCustomRenderingPipeline(): boolean {
     return true;
@@ -35,6 +37,7 @@ export class WSIViewport extends Viewport {
     if (fetcher) {
       // Dispose previous tile manager if any
       this.tileManager?.dispose();
+      this._clearBitmapCache();
 
       const gridInfo: TileGridInfo = {
         imageWidth: info.width,
@@ -60,12 +63,20 @@ export class WSIViewport extends Viewport {
     return this.tileManager;
   }
 
-  private onTileReady = (_coord: TileCoord, _imageData: ImageData): void => {
-    // Schedule a re-render via the rendering engine's rAF loop
-    const engine = renderingEngineCache.get(this.renderingEngineId);
-    if (engine) {
-      engine.renderViewport(this.id);
-    }
+  private onTileReady = (coord: TileCoord, imageData: ImageData): void => {
+    // Asynchronously create an ImageBitmap for GPU-accelerated rendering
+    const key = TileGrid.tileKey(coord);
+    createImageBitmap(imageData).then((bitmap) => {
+      // Close any previous bitmap for this key
+      this.bitmapCache.get(key)?.close();
+      this.bitmapCache.set(key, bitmap);
+
+      // Schedule a re-render via the rendering engine's rAF loop
+      const engine = renderingEngineCache.get(this.renderingEngineId);
+      if (engine) {
+        engine.renderViewport(this.id);
+      }
+    });
   };
 
   override render(): void {
@@ -115,35 +126,46 @@ export class WSIViewport extends Viewport {
     // Trigger tile loading for visible region
     this.tileManager.updateVisibleRegion(bounds, cameraState.zoom);
 
-    // Render cached tiles
+    // Render cached tiles using ImageBitmap (GPU-accelerated) when available
     const visibleTiles = grid.getVisibleTiles(bounds, level);
     const ctx = this.canvas.getContext('2d')!;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
     for (const coord of visibleTiles) {
-      const tileData = cache.get(coord);
-      if (!tileData) continue;
+      const key = TileGrid.tileKey(coord);
+      const bitmap = this.bitmapCache.get(key);
 
       const tilePixel = grid.tileCoordToPixel(coord);
-      const tileScreenX = transform.offsetX + tilePixel.x * fitScale;
-      const tileScreenY = transform.offsetY + tilePixel.y * fitScale;
-      const tileW = tileData.width * fitScale;
-      const tileH = tileData.height * fitScale;
 
-      // Reuse offscreen canvas for tile blitting
-      if (
-        !this.offscreenTileCanvas ||
-        this.offscreenTileCanvas.width !== tileData.width ||
-        this.offscreenTileCanvas.height !== tileData.height
-      ) {
-        this.offscreenTileCanvas = new OffscreenCanvas(tileData.width, tileData.height);
+      if (bitmap) {
+        // Fast path: draw pre-created ImageBitmap directly (GPU-accelerated)
+        const tileScreenX = transform.offsetX + tilePixel.x * fitScale;
+        const tileScreenY = transform.offsetY + tilePixel.y * fitScale;
+        const tileW = bitmap.width * fitScale;
+        const tileH = bitmap.height * fitScale;
+        ctx.drawImage(bitmap, tileScreenX, tileScreenY, tileW, tileH);
+      } else {
+        // Fallback: bitmap not ready yet, use offscreen canvas + putImageData
+        const tileData = cache.get(coord);
+        if (!tileData) continue;
+
+        const tileScreenX = transform.offsetX + tilePixel.x * fitScale;
+        const tileScreenY = transform.offsetY + tilePixel.y * fitScale;
+        const tileW = tileData.width * fitScale;
+        const tileH = tileData.height * fitScale;
+
+        if (
+          !this.offscreenTileCanvas ||
+          this.offscreenTileCanvas.width !== tileData.width ||
+          this.offscreenTileCanvas.height !== tileData.height
+        ) {
+          this.offscreenTileCanvas = new OffscreenCanvas(tileData.width, tileData.height);
+        }
+        const offCtx = this.offscreenTileCanvas.getContext('2d')!;
+        offCtx.putImageData(tileData, 0, 0);
+        ctx.drawImage(this.offscreenTileCanvas, tileScreenX, tileScreenY, tileW, tileH);
       }
-
-      const offCtx = this.offscreenTileCanvas.getContext('2d')!;
-      offCtx.putImageData(tileData, 0, 0);
-
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(this.offscreenTileCanvas, tileScreenX, tileScreenY, tileW, tileH);
     }
 
     if (visibleTiles.length > 0) {
@@ -158,9 +180,17 @@ export class WSIViewport extends Viewport {
     });
   }
 
+  private _clearBitmapCache(): void {
+    for (const bitmap of this.bitmapCache.values()) {
+      bitmap.close();
+    }
+    this.bitmapCache.clear();
+  }
+
   override dispose(): void {
     this.tileManager?.dispose();
     this.tileManager = null;
+    this._clearBitmapCache();
     this.offscreenTileCanvas = null;
     this.imageInfo = null;
     super.dispose();

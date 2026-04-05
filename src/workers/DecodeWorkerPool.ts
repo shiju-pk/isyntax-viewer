@@ -140,6 +140,30 @@ export class DecodeWorkerPool {
     return this.workers.reduce((sum, w) => sum + w.pendingTasks, 0);
   }
 
+  /**
+   * Cancel all pending decode tasks for a given imageKey.
+   * Rejects pending promises with an AbortError so callers can distinguish
+   * cancellation from real failures. Does NOT terminate the worker — only
+   * rejects the callbacks on the main-thread side.
+   */
+  cancelByImageKey(imageKey: string): number {
+    const affinityIdx = this.imageKeyAffinity.get(imageKey);
+    if (affinityIdx === undefined || affinityIdx >= this.workers.length) return 0;
+
+    const entry = this.workers[affinityIdx];
+    let cancelled = 0;
+
+    for (const [taskId, cb] of entry.pendingCallbacks) {
+      cb.reject(new DOMException(`Decode cancelled for ${imageKey}`, 'AbortError'));
+      entry.pendingCallbacks.delete(taskId);
+      entry.pendingTasks = Math.max(0, entry.pendingTasks - 1);
+      cancelled++;
+    }
+
+    this.imageKeyAffinity.delete(imageKey);
+    return cancelled;
+  }
+
   // --- Private ---
 
   /**
