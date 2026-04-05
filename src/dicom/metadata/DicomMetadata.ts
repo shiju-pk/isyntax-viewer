@@ -135,6 +135,21 @@ function applyTagToMetadata(
     case DICOM_TAGS.iSyntaxPartitionDimension:
       meta.iSyntaxPartitionDimension = Number(value);
       break;
+    case DICOM_TAGS.NumberOfFrames:
+      meta.numberOfFrames = Number(value);
+      break;
+    case DICOM_TAGS.FrameOfReferenceUID:
+      meta.frameOfReferenceUID = value as string;
+      break;
+    default:
+      // Collect overlay 60xx tags into overlayAttributes map
+      if (tag.startsWith(DICOM_TAGS.OverlayStartTag)) {
+        if (!meta.overlayAttributes) {
+          meta.overlayAttributes = {};
+        }
+        meta.overlayAttributes[tag] = value;
+      }
+      break;
   }
 }
 

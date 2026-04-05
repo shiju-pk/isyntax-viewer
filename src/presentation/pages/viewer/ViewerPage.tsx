@@ -13,6 +13,8 @@ import MetadataPanel from '../../components/Viewer/MetadataPanel';
 import ResizeHandle from '../../components/Viewer/ResizeHandle';
 import ViewportOverlay from '../../components/Viewer/ViewportOverlay';
 import ImageScrollbar from '../../components/Viewer/ImageScrollbar';
+import LayoutSwitcher from '../../components/Viewer/LayoutSwitcher';
+import type { LayoutMode } from '../../components/Viewer/LayoutSwitcher';
 import { useViewerHotkeys } from '../../hooks/useViewerHotkeys';
 import { useStudyLoader } from '../../hooks/useStudyLoader';
 
@@ -40,6 +42,7 @@ export default function ViewerPage() {
   const [thumbWidth, setThumbWidth] = useState(148);
   const [metaWidth, setMetaWidth] = useState(288);
   const [mode, setMode] = useState<InteractionMode>('pan');
+  const [layout, setLayout] = useState<LayoutMode>('1x1');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(studyError);
   const [progressVisible, setProgressVisible] = useState(false);
@@ -158,6 +161,10 @@ export default function ViewerPage() {
     controllerRef.current?.reset();
   };
 
+  const handleLayoutChange = useCallback((newLayout: LayoutMode, _rows: number, _cols: number) => {
+    setLayout(newLayout);
+  }, []);
+
   const handleFlipHorizontal = useCallback(() => {
     controllerRef.current?.flipHorizontal();
   }, []);
@@ -246,6 +253,7 @@ export default function ViewerPage() {
             {studyInfo.modality && <><span className="text-gray-600">•</span><span>{studyInfo.modality}</span></>}
           </div>
         )}
+        <LayoutSwitcher activeLayout={layout} onLayoutChange={handleLayoutChange} />
         <ToolPalette activeMode={mode} onModeChange={setMode} onReset={handleReset} onFlipHorizontal={handleFlipHorizontal} onFlipVertical={handleFlipVertical} onRotateRight90={handleRotateRight90} onDownload={handleDownloadRaw} canDownload={currentImage !== null} showMetadata={showMetadata} onToggleMetadata={() => setShowMetadata(prev => !prev)} />
       </TitleBar>
       <div className="flex flex-1 overflow-hidden">

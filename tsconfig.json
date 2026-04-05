@@ -31,7 +31,15 @@
       "@workers/*": ["src/workers/*"],
       "@cache/*": ["src/cache/*"],
       "@requestPool/*": ["src/requestPool/*"],
-      "@segmentation/*": ["src/segmentation/*"]
+      "@segmentation/*": ["src/segmentation/*"],
+      "@overlay-engine/*": ["src/overlay-engine/*"],
+      "@gsps-engine/*": ["src/gsps-engine/*"],
+      "@cad-marker-engine/*": ["src/cad-marker-engine/*"],
+      "@presentation-state/*": ["src/presentation-state/*"],
+      "@screen-overlay/*": ["src/screen-overlay/*"],
+      "@cine/*": ["src/cine/*"],
+      "@viewport-sync/*": ["src/viewport-sync/*"],
+      "@save-state/*": ["src/save-state/*"]
     }
   },
   "include": ["src"]

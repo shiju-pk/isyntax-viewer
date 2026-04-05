@@ -24,6 +24,12 @@ export interface DicomImageMetadata {
   modality?: string;
   imageNumber?: number;
   iSyntaxPartitionDimension?: number;
+  // Multi-frame Module
+  numberOfFrames?: number;
+  // Frame of Reference Module
+  frameOfReferenceUID?: string;
+  // Overlay attributes — raw 60xx tag map (tag → value) for overlay-engine parsing
+  overlayAttributes?: Record<string, unknown>;
 }
 
 export interface StudyInfo {

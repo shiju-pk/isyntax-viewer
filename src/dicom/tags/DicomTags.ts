@@ -32,4 +32,26 @@ export const DICOM_TAGS = {
   SamplesPerPixel: '00280002',
   SeriesFrameOfRefUID: '00200052',
   iSyntaxPartitionDimension: '00730003',
+
+  // Overlay Module (60xx group — element suffixes only, group varies 6000–601E)
+  OverlayStartTag: '60',
+  OverlayRows: '0010',
+  OverlayColumns: '0011',
+  OverlayType: '0040',
+  OverlayOrigin: '0050',
+  OverlayBitsAllocated: '0100',
+  OverlayBitPosition: '0102',
+  OverlayData: '3000',
+  OverlayDescription: '0022',
+  OverlaySubtype: '0045',
+  OverlayLabel: '1500',
+  OverlayFrameCount: '0015',
+  OverlayFrameOrigin: '0051',
+  OverlayActivationLayer: '1001',
+
+  // Multi-frame Module
+  NumberOfFrames: '00280008',
+
+  // Frame of Reference Module
+  FrameOfReferenceUID: '00200052',
 } as const;

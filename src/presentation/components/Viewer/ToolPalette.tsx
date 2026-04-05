@@ -2,7 +2,7 @@ import {
   Move, ZoomIn, SunMedium, RotateCcw, RotateCw, Download, Info,
   Ruler, Triangle, Circle, Square, ArrowUpRight, Crosshair,
   Paintbrush, Eraser, SlidersHorizontal, Scissors, PaintBucket,
-  FlipHorizontal2, FlipVertical2, RefreshCw,
+  FlipHorizontal2, FlipVertical2, RefreshCw, Pen, Type,
 } from 'lucide-react';
 import type { InteractionMode } from '../../../core/types';
 
@@ -40,6 +40,9 @@ const annotationTools: ToolDef[] = [
   { mode: 'rectangleROI', icon: Square, label: 'Rectangle ROI' },
   { mode: 'arrowAnnotate', icon: ArrowUpRight, label: 'Arrow Annotate' },
   { mode: 'probe', icon: Crosshair, label: 'Probe' },
+  { mode: 'circle', icon: Circle, label: 'Circle ROI', shortcut: 'C' },
+  { mode: 'freehand', icon: Pen, label: 'Freehand', shortcut: 'F' },
+  { mode: 'textAnnotation', icon: Type, label: 'Text', shortcut: 'T' },
 ];
 
 const segmentationTools: ToolDef[] = [

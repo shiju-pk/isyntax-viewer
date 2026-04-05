@@ -10,3 +10,6 @@ export { EllipticalROITool } from './EllipticalROITool';
 export { RectangleROITool } from './RectangleROITool';
 export { ArrowAnnotateTool } from './ArrowAnnotateTool';
 export { ProbeTool } from './ProbeTool';
+export { CircleTool } from './CircleTool';
+export { FreehandTool } from './FreehandTool';
+export { TextAnnotationTool } from './TextAnnotationTool';

@@ -35,4 +35,7 @@ export {
   RectangleROITool,
   ArrowAnnotateTool,
   ProbeTool,
+  CircleTool,
+  FreehandTool,
+  TextAnnotationTool,
 } from './concrete';

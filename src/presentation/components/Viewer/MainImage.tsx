@@ -24,6 +24,9 @@ import {
   RectangleROITool,
   ArrowAnnotateTool,
   ProbeTool,
+  CircleTool,
+  FreehandTool,
+  TextAnnotationTool,
   annotationManager,
 } from '../../../tools';
 import type { AnnotationTool } from '../../../tools/base/AnnotationTool';
@@ -61,6 +64,9 @@ const _registered = (() => {
   registerToolClass(RectangleROITool);
   registerToolClass(ArrowAnnotateTool);
   registerToolClass(ProbeTool);
+  registerToolClass(CircleTool);
+  registerToolClass(FreehandTool);
+  registerToolClass(TextAnnotationTool);
   registerToolClass(BrushTool);
   registerToolClass(EraserTool);
   registerToolClass(ThresholdBrushTool);
@@ -80,6 +86,9 @@ const MODE_TO_TOOL_NAME: Record<InteractionMode, string> = {
   rectangleROI: 'RectangleROI',
   arrowAnnotate: 'ArrowAnnotate',
   probe: 'Probe',
+  circle: 'Circle',
+  freehand: 'Freehand',
+  textAnnotation: 'TextAnnotation',
   brush: 'Brush',
   eraser: 'Eraser',
   thresholdBrush: 'ThresholdBrush',

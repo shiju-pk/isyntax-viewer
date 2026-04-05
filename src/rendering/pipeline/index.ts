@@ -4,3 +4,4 @@ export { ImageMapper } from './stages/ImageMapper';
 export { VOILUTStage } from './stages/VOILUTStage';
 export { ColorMapStage } from './stages/ColorMapStage';
 export { CompositorStage } from './stages/CompositorStage';
+export { OverlayCompositorStage } from './stages/OverlayCompositorStage';
