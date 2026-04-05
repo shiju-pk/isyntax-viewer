@@ -35,12 +35,18 @@ function makeLoadingRow(config: StudyConfig): StudyRow {
   };
 }
 
+/** Module-level cache so navigating back renders instantly. */
+let cachedRows: StudyRow[] | null = null;
+
 export default function Worklist() {
-  const [rows, setRows] = useState<StudyRow[]>([]);
+  const [rows, setRows] = useState<StudyRow[]>(cachedRows ?? []);
   const [showForm, setShowForm] = useState(false);
   const [formStudyId, setFormStudyId] = useState('');
   const [formStackId, setFormStackId] = useState('');
   const navigate = useNavigate();
+
+  // Keep module cache in sync with every state update
+  useEffect(() => { cachedRows = rows; }, [rows]);
 
   const fetchAndUpdateRow = useCallback(
     async (config: StudyConfig, index: number) => {
@@ -79,6 +85,11 @@ export default function Worklist() {
   );
 
   useEffect(() => {
+    // If we already have fully-loaded cached rows, skip fetching
+    if (cachedRows && cachedRows.length > 0 && cachedRows.every((r) => !r.loading)) {
+      return;
+    }
+
     const builtInConfigs = studyConfigs as StudyConfig[];
     const userConfigs = getAddedStudies();
     const allConfigs = [
@@ -90,7 +101,20 @@ export default function Worklist() {
       isUserAdded: c.isUserAdded,
     }));
     setRows(initialRows);
-    allConfigs.forEach((config, index) => fetchAndUpdateRow(config, index));
+
+    // Fetch with bounded concurrency so rows stream in progressively
+    // rather than all requests firing at once.
+    const CONCURRENCY = 4;
+    const tasks = allConfigs.map((config, index) => () => fetchAndUpdateRow(config, index));
+    const iter = tasks[Symbol.iterator]();
+    async function worker() {
+      for (;;) {
+        const { value: task, done } = iter.next();
+        if (done || !task) break;
+        await task();
+      }
+    }
+    void Promise.all(Array.from({ length: CONCURRENCY }, worker));
   }, [fetchAndUpdateRow]);
 
   const handleAddStudy = () => {
