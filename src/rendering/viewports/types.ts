@@ -61,5 +61,6 @@ export interface IViewport {
   getCamera(): import('../camera/Camera2D').Camera2D;
   setProperties(props: ViewportProperties): void;
   getProperties(): ViewportProperties;
+  addPipelineStage(stage: import('../pipeline/IRenderStage').IRenderStage, index?: number): void;
   dispose(): void;
 }

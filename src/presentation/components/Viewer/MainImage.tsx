@@ -4,6 +4,7 @@ import {
   ViewportType,
   eventBus,
   RenderingEvents,
+  OverlayCompositorStage,
 } from '../../../rendering';
 import type { IViewport } from '../../../rendering';
 import type { ICanvasController } from '../../../core/interfaces';
@@ -41,6 +42,7 @@ import {
   segmentationState,
   SegmentationRepresentationType,
 } from '../../../segmentation';
+import type { OverlayGroup } from '../../../overlay-engine/types';
 
 interface MainImageProps {
   imageData: ImageData | null;
@@ -48,6 +50,8 @@ interface MainImageProps {
   /** Instance UID of the currently displayed image — scopes annotations per image. */
   imageId?: string;
   onControllerReady?: (controller: ICanvasController) => void;
+  /** Parsed DICOM 6000 overlay group — composited in the render pipeline after VOI/LUT. */
+  overlayGroup?: OverlayGroup | null;
 }
 
 const VIEWPORT_ID = 'main-viewport';
@@ -100,7 +104,7 @@ const SEGMENTATION_MODES: Set<InteractionMode> = new Set([
   'brush', 'eraser', 'thresholdBrush', 'scissors', 'floodFill',
 ]);
 
-export default function MainImage({ imageData, mode, imageId, onControllerReady }: MainImageProps) {
+export default function MainImage({ imageData, mode, imageId, onControllerReady, overlayGroup }: MainImageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<RenderingEngine | null>(null);
   const toolGroupRef = useRef<ToolGroup | null>(null);
@@ -108,6 +112,7 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady 
   const svgHelperRef = useRef<SVGDrawingHelper | null>(null);
   const labelmapRendererRef = useRef<LabelmapRenderer | null>(null);
   const contourRendererRef = useRef<ContourRenderer | null>(null);
+  const overlayStageRef = useRef<OverlayCompositorStage | null>(null);
   const imageIdRef = useRef<string>(imageId ?? '');
   const modeRef = useRef<InteractionMode>(mode);
   modeRef.current = mode;
@@ -190,6 +195,11 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady 
 
       // Hook into the rendering engine's render event
       engine.onAfterRender(() => renderOverlays());
+
+      // Add OverlayCompositorStage to the pipeline (after VOI/LUT, before final compositing)
+      const overlayStage = new OverlayCompositorStage();
+      overlayStageRef.current = overlayStage;
+      (viewport as import('../../../rendering').Viewport).addPipelineStage(overlayStage);
     }
 
     // Provide backward-compatible ICanvasController shim
@@ -271,6 +281,7 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady 
       labelmapRendererRef.current?.dispose();
       labelmapRendererRef.current = null;
       contourRendererRef.current = null;
+      overlayStageRef.current = null;
       toolGroupRef.current?.destroy();
       toolGroupRef.current = null;
       engine.destroy();
@@ -287,6 +298,18 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady 
       engineRef.current.renderViewport(VIEWPORT_ID);
     }
   }, [imageData]);
+
+  // Update overlay stage when overlay group changes
+  useEffect(() => {
+    const stage = overlayStageRef.current;
+    if (!stage) return;
+    stage.setOverlayGroup(overlayGroup ?? null);
+    stage.setEnabled(!!overlayGroup);
+    // Re-render so the overlay is composited
+    if (engineRef.current) {
+      engineRef.current.renderViewport(VIEWPORT_ID);
+    }
+  }, [overlayGroup]);
 
   // Update imageId ref and viewport ref when the displayed image changes
   useEffect(() => {

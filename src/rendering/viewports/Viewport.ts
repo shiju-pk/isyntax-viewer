@@ -73,6 +73,11 @@ export abstract class Viewport implements IViewport {
     return this.imageData;
   }
 
+  /** Add a stage to the render pipeline. Inserted before CompositorStage by default. */
+  addPipelineStage(stage: import('../pipeline/IRenderStage').IRenderStage, index?: number): void {
+    this.pipeline?.addStage(stage, index);
+  }
+
   render(): void {
     const startTime = performance.now();
 

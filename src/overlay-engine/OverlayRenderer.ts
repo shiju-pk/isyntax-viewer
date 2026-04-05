@@ -78,13 +78,26 @@ export function renderOverlays(
       continue;
     }
 
-    // Determine if rescaling is needed
+    // Determine if rescaling is needed (both up and down)
     const overlayRows = plane.rows >> pixelLevel || plane.rows;
     const overlayCols = plane.columns >> pixelLevel || plane.columns;
 
     let finalBits: Uint8Array;
-    if (overlayRows > imageHeight || overlayCols > imageWidth) {
-      finalBits = downSampleOverlay(overlayBits, plane.rows, plane.columns, imageHeight, imageWidth);
+    let scaledPlane = plane;
+    if (overlayRows !== imageHeight || overlayCols !== imageWidth) {
+      finalBits = resampleOverlay(overlayBits, plane.rows, plane.columns, imageHeight, imageWidth);
+      // Scale origin proportionally
+      const rowScale = imageHeight / plane.rows;
+      const colScale = imageWidth / plane.columns;
+      scaledPlane = {
+        ...plane,
+        rows: imageHeight,
+        columns: imageWidth,
+        origin: [
+          Math.round(plane.origin[0] * rowScale),
+          Math.round(plane.origin[1] * colScale),
+        ] as [number, number],
+      };
     } else {
       finalBits = overlayBits;
     }
@@ -93,7 +106,7 @@ export function renderOverlays(
     compositePlane(
       output,
       finalBits,
-      plane,
+      scaledPlane,
       imageWidth,
       imageHeight,
       pixelLevel,
@@ -253,9 +266,9 @@ function compositePlane(
 // ---------------------------------------------------------------------------
 
 /**
- * Simple nearest-neighbor downsample of overlay bit data.
+ * Nearest-neighbor resample of overlay bit data (works for both up and down scaling).
  */
-function downSampleOverlay(
+function resampleOverlay(
   bits: Uint8Array,
   srcRows: number,
   srcCols: number,

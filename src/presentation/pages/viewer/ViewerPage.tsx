@@ -17,6 +17,8 @@ import LayoutSwitcher from '../../components/Viewer/LayoutSwitcher';
 import type { LayoutMode } from '../../components/Viewer/LayoutSwitcher';
 import { useViewerHotkeys } from '../../hooks/useViewerHotkeys';
 import { useStudyLoader } from '../../hooks/useStudyLoader';
+import { parseOverlayGroup } from '../../../overlay-engine/OverlayParser';
+import type { OverlayGroup } from '../../../overlay-engine/types';
 
 export default function ViewerPage() {
   const location = useLocation();
@@ -54,6 +56,8 @@ export default function ViewerPage() {
     if (studyError) setError(studyError);
   }, [studyError]);
 
+  const [overlaysEnabled, setOverlaysEnabled] = useState(true);
+
   // Derived values — eliminates repeated inline lookups in JSX
   const currentInstanceUID = useMemo(() => {
     if (seriesGroups.length === 0) return '';
@@ -65,6 +69,20 @@ export default function ViewerPage() {
     () => (currentInstanceUID ? metadataMap.get(currentInstanceUID) ?? null : null),
     [metadataMap, currentInstanceUID],
   );
+
+  // Parse DICOM 6000 overlay group from metadata (compositing is done in the render pipeline)
+  const overlayGroup = useMemo<OverlayGroup | null>(() => {
+    if (!currentMetadata?.overlayAttributes) return null;
+    const attrs = currentMetadata.overlayAttributes;
+    const hasOverlayData = Object.keys(attrs).some(k => k.startsWith('60'));
+    if (!hasOverlayData) return null;
+    try {
+      return parseOverlayGroup(attrs);
+    } catch (err) {
+      console.error('[Overlay] Failed to parse overlay group:', err);
+      return null;
+    }
+  }, [currentMetadata]);
 
   // Delay showing progress bar by 300ms to avoid flicker for fast loads
   useEffect(() => {
@@ -317,6 +335,7 @@ export default function ViewerPage() {
                 mode={mode}
                 imageId={currentInstanceUID || undefined}
                 onControllerReady={handleControllerReady}
+                overlayGroup={overlaysEnabled ? overlayGroup : null}
               />
               <ViewportOverlay
                 metadata={currentMetadata}

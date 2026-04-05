@@ -47,10 +47,22 @@ export class OverlayCompositorStage implements IRenderStage {
     const imgData = context.outputImageData;
     if (!imgData) return;
 
+    // Clone the output buffer if it's the same reference as the source imageData
+    // to avoid permanently baking overlay pixels into the base image
+    if (context.imageData && imgData.data.buffer === context.imageData.data.buffer) {
+      context.outputImageData = new ImageData(
+        new Uint8ClampedArray(imgData.data),
+        imgData.width,
+        imgData.height,
+      );
+    }
+
+    const target = context.outputImageData!;
+
     // Build full render options from context and stored partial options
     const options: OverlayRenderOptions = {
-      imageWidth: imgData.width,
-      imageHeight: imgData.height,
+      imageWidth: target.width,
+      imageHeight: target.height,
       pixelLevel: this._options.pixelLevel ?? 0,
       currentFrame: this._options.currentFrame ?? 1,
       isMultiFrame: this._options.isMultiFrame ?? false,
@@ -64,7 +76,7 @@ export class OverlayCompositorStage implements IRenderStage {
 
     // Composite overlay RGBA onto the output image data
     // Only overwrite pixels where the overlay alpha > 0
-    const dst = imgData.data;
+    const dst = target.data;
     const src = result.imageData.data;
     const len = Math.min(dst.length, src.length);
 

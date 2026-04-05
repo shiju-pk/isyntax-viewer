@@ -39,7 +39,7 @@ function extractElementValue(element: Element): string | string[] | null {
     return val;
   }
 
-  // Check for multi-value
+  // Check for multi-value — first try known tags, then fallback to nbE attribute
   if (tag) {
     const multiCount = MULTI_VALUE_TAGS[tag];
     if (multiCount) {
@@ -53,6 +53,22 @@ function extractElementValue(element: Element): string | string[] | null {
           values.push(v);
         } else {
           break;
+        }
+      }
+      return values.length > 0 ? values : null;
+    }
+  }
+
+  // Generic multi-value: nbE attribute (e.g., overlay origin 60000050)
+  const nbE = element.getAttribute('nbE');
+  if (nbE) {
+    const count = Number(nbE);
+    if (count > 0) {
+      const values: string[] = [];
+      for (let i = 1; i <= count; i++) {
+        const v = element.getAttribute(`val${i}`);
+        if (v != null) {
+          values.push(v);
         }
       }
       return values.length > 0 ? values : null;
@@ -228,24 +244,64 @@ export function extractImageMetadata(
     const idelta = ideltaElements[i];
     const parentSeries = idelta.getAttribute('parent') || '';
 
-    // Clone template metadata for this series
+    // Clone template metadata for this series (deep-clone overlayAttributes)
     const template = templateMap.get(parentSeries);
     const meta: DicomImageMetadata = template
-      ? { ...template }
+      ? { ...template, overlayAttributes: template.overlayAttributes ? { ...template.overlayAttributes } : undefined }
       : getDefaultMetadata();
 
-    // Apply idelta overrides (children can be <element> or <diff> tags)
+    // Apply idelta overrides (children can be <element>, <diff>, or <binDiff> tags)
     const elements = idelta.children;
     for (let j = 0; j < elements.length; j++) {
       const el = elements[j];
-      if (el.tagName !== 'element' && el.tagName !== 'diff') continue;
-      // op="-" means the tag is removed (undefined in reference code)
-      const op = el.getAttribute('op');
-      if (op === '-') continue;
-      const tag = el.getAttribute('tag');
-      const value = extractElementValue(el);
-      if (tag && value) {
-        applyTagToMetadata(meta, tag, value);
+      const tagName = el.tagName;
+
+      if (tagName === 'element' || tagName === 'diff') {
+        const op = el.getAttribute('op');
+        const tag = el.getAttribute('tag');
+        if (!tag) continue;
+
+        if (op === '-') {
+          // Remove: clear this tag from overlay attributes if it's a 60xx tag
+          if (tag.startsWith(DICOM_TAGS.OverlayStartTag) && meta.overlayAttributes) {
+            delete meta.overlayAttributes[tag];
+          }
+          continue;
+        }
+
+        const value = extractElementValue(el);
+        if (value) {
+          applyTagToMetadata(meta, tag, value);
+        }
+      } else if (tagName === 'binDiff') {
+        // Binary diff: contains base64-encoded (possibly zlib-compressed) data
+        // Used for overlay pixel data (60003000) and other binary tags
+        const op = el.getAttribute('op');
+        const tag = el.getAttribute('tag');
+        if (!tag) continue;
+
+        if (op === '-') {
+          // Remove binary tag
+          if (tag.startsWith(DICOM_TAGS.OverlayStartTag) && meta.overlayAttributes) {
+            delete meta.overlayAttributes[tag];
+          }
+          continue;
+        }
+
+        // Store the raw binDiff element info for overlay data
+        if (tag.startsWith(DICOM_TAGS.OverlayStartTag)) {
+          if (!meta.overlayAttributes) {
+            meta.overlayAttributes = {};
+          }
+          const encode = el.getAttribute('Encode') || '';
+          const binVal = el.getAttribute('val') || el.textContent || '';
+          // Store as an object so the overlay parser can decode it
+          meta.overlayAttributes[tag] = {
+            __binDiff: true,
+            encode,
+            data: binVal,
+          };
+        }
       }
     }
 

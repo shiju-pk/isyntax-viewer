@@ -8,6 +8,7 @@
  * modernized TypeScript types and no framework dependencies.
  */
 
+import pako from 'pako';
 import type { OverlayPlane, OverlayGroup, OverlayType } from './types';
 import { DEFAULT_OVERLAY_COLORS } from './types';
 
@@ -225,11 +226,10 @@ function parseOrigin(value: unknown): [number, number] {
 }
 
 /**
- * Decode overlay data from a base64-encoded string.
- *
- * The legacy viewer stores overlay data as base64, with an optional 4-byte
- * size header followed by potentially zlib-compressed data. We attempt
- * decompression first and fall back to uncompressed.
+ * Decode overlay data from various formats:
+ *   - Uint8Array / ArrayBuffer — raw bytes
+ *   - string — base64-encoded, possibly with 4-byte size header + zlib
+ *   - { __binDiff, encode, data } — binDiff object from metadata extraction
  *
  * Ported from legacy `_unzipAndDecode` in `overlaygroup.js`.
  */
@@ -237,37 +237,89 @@ function decodeOverlayData(value: unknown): Uint8Array | null {
   if (value instanceof Uint8Array) return value;
   if (value instanceof ArrayBuffer) return new Uint8Array(value);
 
+  // Handle binDiff object from metadata extraction
+  if (value && typeof value === 'object' && (value as Record<string, unknown>).__binDiff) {
+    const binObj = value as { encode: string; data: string };
+    return decodeBinDiffData(binObj.data, binObj.encode);
+  }
+
   if (typeof value !== 'string' || value.length === 0) return null;
+
+  return decodeBinDiffData(value, 'base64');
+}
+
+/**
+ * Decode base64 (or base64z) overlay data.
+ *
+ * - base64: plain base64 with optional 4-byte size header + zlib
+ * - base64z: base64 wrapping zlib-compressed data
+ */
+function decodeBinDiffData(data: string, encode: string): Uint8Array | null {
+  if (!data || data.length === 0) return null;
 
   try {
     // Base64 decode
-    const binaryStr = atob(value);
+    const binaryStr = atob(data);
     const byteArray = new Uint8Array(binaryStr.length);
     for (let i = 0; i < binaryStr.length; i++) {
       byteArray[i] = binaryStr.charCodeAt(i);
     }
 
-    // Skip the first 4 bytes (size header) and attempt zlib inflate
-    const payload = byteArray.subarray(4);
+    const encodeLower = encode.toLowerCase();
 
-    try {
-      // Try decompression (if zlib is available globally as in legacy)
-      if (
-        typeof window !== 'undefined' &&
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (window as any).Zlib
-      ) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const zlib = (window as any).Zlib;
-        return zlib.inflateHelper.inflate(payload) as Uint8Array;
+    // base64z: the payload may be zlib-compressed, optionally preceded by
+    // a 4-byte LE size header (common in iSyntax studydoc format).
+    if (encodeLower === 'base64z') {
+      // Try full-buffer inflate first (pure zlib without header)
+      try {
+        return pako.inflate(byteArray);
+      } catch { /* fall through */ }
+
+      try {
+        return pako.inflateRaw(byteArray);
+      } catch { /* fall through */ }
+
+      // Try 4-byte size header + zlib (e.g. header bytes 78 9C / 78 DA at offset 4)
+      if (byteArray.length > 4) {
+        const payload = byteArray.subarray(4);
+        try {
+          return pako.inflate(payload);
+        } catch { /* fall through */ }
+
+        try {
+          return pako.inflateRaw(payload);
+        } catch { /* fall through */ }
       }
 
-      // Try native DecompressionStream API (modern browsers)
-      // For synchronous fallback, just return raw data
+      // Not compressed — return raw
       return byteArray;
+    }
+
+    // Plain base64: try 4-byte size header + zlib pattern from legacy format
+    if (byteArray.length > 6) {
+      const payload = byteArray.subarray(4);
+      try {
+        // Skip 2-byte zlib header
+        return pako.inflateRaw(payload.subarray(2));
+      } catch {
+        try {
+          return pako.inflate(payload);
+        } catch {
+          // Fall through to try full-buffer decompression
+        }
+      }
+    }
+
+    // Try decompressing the full buffer (zlib with or without header)
+    try {
+      return pako.inflate(byteArray);
     } catch {
-      // Data was not compressed — return raw bytes
-      return byteArray;
+      try {
+        return pako.inflateRaw(byteArray);
+      } catch {
+        // Not compressed — return raw bytes
+        return byteArray;
+      }
     }
   } catch {
     return null;
