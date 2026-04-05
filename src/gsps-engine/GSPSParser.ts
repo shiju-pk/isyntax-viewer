@@ -68,7 +68,7 @@ const GSPS_TAGS = {
   GraphicLayerRecommendedDisplayGrayscaleValue: '00700066',
 
   // Softcopy VOI LUT Module
-  SoftcopyVOILUTSequence: '00289132',
+  SoftcopyVOILUTSequence: '00283110',
   WindowCenter: '00281050',
   WindowWidth: '00281051',
   VOILUTFunction: '00281056',

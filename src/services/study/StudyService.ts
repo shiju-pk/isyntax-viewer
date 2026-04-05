@@ -6,7 +6,11 @@ import {
   extractStudyInfo,
   extractImageUIDsFromImagesXml,
   getImageSeriesUIDs,
+  extractGSPSAttributeMaps,
 } from '../../dicom/metadata/DicomMetadata';
+import { parseGSPSInstance } from '../../gsps-engine/GSPSParser';
+import { buildApplicationResult } from '../../gsps-engine/GraphicAnnotationProcessor';
+import type { GSPSApplicationResult } from '../../gsps-engine/types';
 
 /**
  * Cache for parsed StudyDoc data keyed by `${studyUID}::${stackId}`.
@@ -206,4 +210,24 @@ export async function getSeriesImageGroups(
       return numA - numB;
     }),
   }));
+}
+
+/**
+ * Extract and parse GSPS data from the study document.
+ * Returns the processed GSPS application result (annotations, VOI, spatial transforms)
+ * or null if no GSPS is present.
+ */
+export async function getGSPSData(
+  studyUID: string,
+  stackId: string,
+): Promise<GSPSApplicationResult | null> {
+  const doc = await fetchStudyDoc(studyUID, stackId);
+  if (!doc.studyXml) return null;
+
+  const attributeMaps = extractGSPSAttributeMaps(doc.studyXml);
+  if (attributeMaps.length === 0) return null;
+
+  // Parse the first (best) GSPS instance
+  const parsed = parseGSPSInstance(attributeMaps[0]);
+  return buildApplicationResult(parsed);
 }

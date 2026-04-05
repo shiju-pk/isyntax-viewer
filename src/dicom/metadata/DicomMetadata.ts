@@ -405,6 +405,79 @@ export function getImageSeriesUIDs(studyXml: Document): Set<string> {
   return imageSeriesUIDs;
 }
 
+const GSPS_SOP_CLASS_UID = '1.2.840.10008.5.1.4.1.1.11.1';
+
+/**
+ * Extract GSPS (Grayscale Softcopy Presentation State) attribute maps from
+ * the study XML. Returns an array of flat attribute maps — one per GSPS
+ * series template — suitable for `parseGSPSInstance()`.
+ *
+ * Each map contains all DICOM tags from the template (including nested
+ * sqElement sequences and binary data as base64 strings).
+ */
+export function extractGSPSAttributeMaps(
+  studyXml: Document,
+): Record<string, unknown>[] {
+  const result: Record<string, unknown>[] = [];
+  const seriesElements = studyXml.getElementsByTagName('series');
+
+  for (let i = 0; i < seriesElements.length; i++) {
+    const seriesEl = seriesElements[i];
+    const templates = seriesEl.getElementsByTagName('template');
+    if (templates.length === 0) continue;
+
+    const templateEl = templates[0];
+    const sopClassUID = getSOPClassUIDFromTemplate(templateEl);
+    if (sopClassUID !== GSPS_SOP_CLASS_UID) continue;
+
+    const attrs = templateElementToAttributeMap(templateEl);
+    result.push(attrs);
+  }
+
+  return result;
+}
+
+/**
+ * Convert a <template> element (with <element>, <sqElement>, <binary> children)
+ * into a flat attribute map suitable for GSPSParser.
+ */
+function templateElementToAttributeMap(
+  parent: Element,
+): Record<string, unknown> {
+  const attrs: Record<string, unknown> = {};
+
+  for (let i = 0; i < parent.children.length; i++) {
+    const child = parent.children[i];
+    const tag = child.getAttribute('tag');
+    if (!tag) continue;
+
+    const tagLower = tag.toLowerCase();
+
+    if (child.tagName === 'element') {
+      const val = extractElementValue(child);
+      if (val !== null) {
+        attrs[tagLower] = val;
+      }
+    } else if (child.tagName === 'binary') {
+      const encode = child.getAttribute('Encode') || 'base64';
+      const val = child.getAttribute('val') || child.textContent || '';
+      attrs[tagLower] = val; // store raw base64 string
+    } else if (child.tagName === 'sqElement') {
+      // Parse sequence: each <val1>, <val2>, ... child is a sequence item
+      const items: Record<string, unknown>[] = [];
+      for (let j = 0; j < child.children.length; j++) {
+        const valChild = child.children[j];
+        if (valChild.tagName.startsWith('val')) {
+          items.push(templateElementToAttributeMap(valChild));
+        }
+      }
+      attrs[tagLower] = items;
+    }
+  }
+
+  return attrs;
+}
+
 /**
  * Extract study-level info (patient, modality, series, images) from the StudyDoc.
  * Image UIDs are extracted only from image series (not presentation state series).

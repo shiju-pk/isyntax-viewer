@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ISyntaxImageService } from '../../services/image/ISyntaxImageService';
-import { getStudyInfoAndImageIds, getAllImageMetadata, getSeriesImageGroups } from '../../services/study/StudyService';
+import { getStudyInfoAndImageIds, getAllImageMetadata, getSeriesImageGroups, getGSPSData } from '../../services/study/StudyService';
 import type { DecodedImage, DicomImageMetadata, StudyInfo, SeriesGroup } from '../../core/types';
+import type { GSPSApplicationResult } from '../../gsps-engine/types';
 
 export interface StudyLoaderResult {
   studyInfo: StudyInfo | null;
@@ -20,6 +21,7 @@ export interface StudyLoaderResult {
   setProgress: (p: { level: number; total: number } | null) => void;
   serviceRef: React.MutableRefObject<ISyntaxImageService | null>;
   servicesRef: React.MutableRefObject<Map<string, ISyntaxImageService>>;
+  gspsResult: GSPSApplicationResult | null;
 }
 
 export function useStudyLoader(studyId: string, stackId: string): StudyLoaderResult {
@@ -36,6 +38,7 @@ export function useStudyLoader(studyId: string, stackId: string): StudyLoaderRes
 
   const serviceRef = useRef<ISyntaxImageService | null>(null);
   const servicesRef = useRef<Map<string, ISyntaxImageService>>(new Map());
+  const [gspsResult, setGspsResult] = useState<GSPSApplicationResult | null>(null);
 
   // Fetch study metadata
   useEffect(() => {
@@ -54,6 +57,20 @@ export function useStudyLoader(studyId: string, stackId: string): StudyLoaderRes
         console.error('Failed to fetch StudyDoc:', err);
         setStudyError(err instanceof Error ? err.message : 'Failed to load study');
         setStudyLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [studyId, stackId]);
+
+  // Fetch GSPS presentation state data
+  useEffect(() => {
+    if (!studyId || !stackId) return;
+    let cancelled = false;
+    getGSPSData(studyId, stackId)
+      .then((result) => {
+        if (!cancelled) setGspsResult(result);
+      })
+      .catch((err: unknown) => {
+        console.warn('Failed to load GSPS data:', err);
       });
     return () => { cancelled = true; };
   }, [studyId, stackId]);
@@ -142,5 +159,6 @@ export function useStudyLoader(studyId: string, stackId: string): StudyLoaderRes
     setProgress,
     serviceRef,
     servicesRef,
+    gspsResult,
   };
 }

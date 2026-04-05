@@ -35,6 +35,7 @@ export default function ViewerPage() {
     studyLoading, studyError,
     currentImage, setCurrentImage, progress, setProgress,
     serviceRef, servicesRef,
+    gspsResult,
   } = useStudyLoader(studyId, stackId);
 
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -83,6 +84,28 @@ export default function ViewerPage() {
       return null;
     }
   }, [currentMetadata]);
+
+  // Apply GSPS VOI transform by re-windowing the raw pixel data
+  const gspsVOIAppliedRef = useRef(false);
+  useEffect(() => {
+    const voi = gspsResult?.voiTransform;
+    if (!voi || !currentImage) return;
+    if (gspsVOIAppliedRef.current) return; // already applied for this study
+
+    const service = serviceRef.current;
+    if (!service) return;
+
+    const rewindowed = service.rewindow(voi.windowCenter, voi.windowWidth);
+    if (rewindowed) {
+      gspsVOIAppliedRef.current = true;
+      setCurrentImage(rewindowed);
+    }
+  }, [gspsResult, currentImage]);
+
+  // Reset GSPS applied flag when switching images
+  useEffect(() => {
+    gspsVOIAppliedRef.current = false;
+  }, [currentInstanceUID]);
 
   // Delay showing progress bar by 300ms to avoid flicker for fast loads
   useEffect(() => {

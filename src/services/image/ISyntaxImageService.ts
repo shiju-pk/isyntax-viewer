@@ -601,6 +601,65 @@ export class ISyntaxImageService {
     return imageData;
   }
 
+  /**
+   * Re-window a monochrome image using new WC/WW values.
+   * Uses the raw pixel data from the cached result to produce a fresh ImageData
+   * with the specified window applied. Returns null for non-monochrome images
+   * or when raw pixel data is unavailable.
+   */
+  rewindow(windowCenter: number, windowWidth: number): ImageData | null {
+    const cached = this._cachedResult;
+    if (!cached?.rawPixelData) return null;
+
+    const fmt = CodecConstants.instance.ImageFormat;
+    const isMonochrome =
+      cached.planes === 1 || cached.format === fmt.MONO;
+    if (!isMonochrome) return null;
+
+    const { rawPixelData, rows, cols } = cached;
+    const totalPixels = rows * cols;
+    const meta = this._dicomMetadata;
+    const slope = meta?.rescaleSlope ?? 1;
+    const intercept = meta?.rescaleIntercept ?? 0;
+
+    const lower = windowCenter - windowWidth / 2;
+    const range = windowWidth || 1;
+    const invRange = 255 / range;
+
+    // Build LUT indexed by raw pixel value
+    let rawMin = rawPixelData[0];
+    let rawMax = rawMin;
+    for (let i = 1; i < totalPixels; i++) {
+      const v = rawPixelData[i];
+      if (v < rawMin) rawMin = v;
+      else if (v > rawMax) rawMax = v;
+    }
+
+    const lutSize = rawMax - rawMin + 1;
+    const lut = new Uint8Array(lutSize);
+    for (let i = 0; i < lutSize; i++) {
+      const mv = (rawMin + i) * slope + intercept;
+      const norm = (mv - lower) * invRange;
+      lut[i] = norm > 255 ? 255 : norm < 0 ? 0 : norm | 0;
+    }
+
+    const imageData = new ImageData(cols, rows);
+    const rgba = imageData.data;
+    const lutOffset = -rawMin;
+    for (let i = 0; i < totalPixels; i++) {
+      const val = lut[rawPixelData[i] + lutOffset];
+      const idx = i << 2;
+      rgba[idx] = val;
+      rgba[idx + 1] = val;
+      rgba[idx + 2] = val;
+      rgba[idx + 3] = 255;
+    }
+
+    // Update cached imageData so progressive loading picks it up
+    cached.imageData = imageData;
+    return imageData;
+  }
+
   dispose(): void {
     if (this._iSyntaxImage) {
       this._iSyntaxImage.dispose();
