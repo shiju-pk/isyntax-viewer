@@ -112,6 +112,7 @@ export function buildApplicationResult(
     voiTransform,
     spatialTransform,
     shutters,
+    presentationLutShape: gsps.presentationLutShape,
     keyImageUIDs,
   };
 }

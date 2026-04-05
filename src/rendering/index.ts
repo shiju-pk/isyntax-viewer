@@ -35,7 +35,7 @@ export { Canvas2DBackend } from './backends';
 export type { IRendererBackend } from './backends';
 
 // Pipeline
-export { RenderPipeline, ImageMapper, VOILUTStage, ColorMapStage, CompositorStage, OverlayCompositorStage } from './pipeline';
+export { RenderPipeline, ImageMapper, VOILUTStage, ColorMapStage, CompositorStage, OverlayCompositorStage, DisplayShutterStage } from './pipeline';
 export type { IRenderStage, RenderContext } from './pipeline';
 
 // Events

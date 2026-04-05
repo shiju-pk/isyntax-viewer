@@ -19,6 +19,7 @@ import { useViewerHotkeys } from '../../hooks/useViewerHotkeys';
 import { useStudyLoader } from '../../hooks/useStudyLoader';
 import { parseOverlayGroup } from '../../../overlay-engine/OverlayParser';
 import type { OverlayGroup } from '../../../overlay-engine/types';
+import type { GSPSApplicationResult } from '../../../gsps-engine/types';
 
 export default function ViewerPage() {
   const location = useLocation();
@@ -359,6 +360,7 @@ export default function ViewerPage() {
                 imageId={currentInstanceUID || undefined}
                 onControllerReady={handleControllerReady}
                 overlayGroup={overlaysEnabled ? overlayGroup : null}
+                gspsResult={gspsResult}
               />
               <ViewportOverlay
                 metadata={currentMetadata}

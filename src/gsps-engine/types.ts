@@ -241,6 +241,9 @@ export interface GSPSApplicationResult {
   /** Display shutters to apply. */
   shutters: GSPSDisplayShutter[];
 
+  /** Presentation LUT shape: 'IDENTITY' | 'INVERSE'. */
+  presentationLutShape?: string;
+
   /** Key image UIDs discovered in the GSPS. */
   keyImageUIDs: string[];
 }

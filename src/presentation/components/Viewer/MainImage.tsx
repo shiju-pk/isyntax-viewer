@@ -43,6 +43,9 @@ import {
   SegmentationRepresentationType,
 } from '../../../segmentation';
 import type { OverlayGroup } from '../../../overlay-engine/types';
+import type { GSPSApplicationResult, GSPSAnnotationEntry } from '../../../gsps-engine/types';
+import { DisplayShutterStage } from '../../../rendering';
+import { generateAnnotationUID } from '../../../tools/stateManagement/AnnotationManager';
 
 interface MainImageProps {
   imageData: ImageData | null;
@@ -52,6 +55,8 @@ interface MainImageProps {
   onControllerReady?: (controller: ICanvasController) => void;
   /** Parsed DICOM 6000 overlay group — composited in the render pipeline after VOI/LUT. */
   overlayGroup?: OverlayGroup | null;
+  /** GSPS application result with annotations, shutters, spatial transform, etc. */
+  gspsResult?: GSPSApplicationResult | null;
 }
 
 const VIEWPORT_ID = 'main-viewport';
@@ -104,7 +109,61 @@ const SEGMENTATION_MODES: Set<InteractionMode> = new Set([
   'brush', 'eraser', 'thresholdBrush', 'scissors', 'floodFill',
 ]);
 
-export default function MainImage({ imageData, mode, imageId, onControllerReady, overlayGroup }: MainImageProps) {
+/**
+ * Convert GSPS annotation entries into framework Annotations and add to the manager.
+ * Matches annotations to the current image by checking referenced image UIDs.
+ */
+function addGSPSAnnotations(
+  annotationsByImage: Map<string, GSPSAnnotationEntry[]>,
+  currentImageId: string,
+  viewportId: string,
+): void {
+  // Try to find annotations for this image by matching UID suffix
+  // (GSPS references full SOP Instance UIDs; our imageIds may differ in format)
+  let entries: GSPSAnnotationEntry[] | undefined;
+
+  for (const [uid, e] of annotationsByImage) {
+    if (uid === currentImageId || currentImageId.includes(uid) || uid.includes(currentImageId)) {
+      entries = e;
+      break;
+    }
+  }
+
+  // If no exact match, apply annotations from the first (only) referenced image
+  // when there's just one entry — common for single-image GSPS
+  if (!entries && annotationsByImage.size === 1) {
+    entries = annotationsByImage.values().next().value;
+  }
+
+  if (!entries || entries.length === 0) return;
+
+  for (const entry of entries) {
+    const annotation: import('../../../tools/base/types').Annotation = {
+      annotationUID: generateAnnotationUID(),
+      metadata: {
+        toolName: entry.toolName,
+        viewportId,
+        imageId: currentImageId,
+      },
+      data: {
+        handles: {
+          points: entry.points.map(p => ({ x: p.x, y: p.y })),
+          activeHandleIndex: -1,
+          ...(entry.label ? { textBox: { worldPosition: entry.points[0], text: entry.label } } : {}),
+        },
+        label: entry.label,
+      },
+      highlighted: false,
+      isLocked: true, // GSPS annotations are read-only
+      isVisible: true,
+      invalidated: false,
+    };
+
+    annotationManager.addAnnotation(annotation);
+  }
+}
+
+export default function MainImage({ imageData, mode, imageId, onControllerReady, overlayGroup, gspsResult }: MainImageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<RenderingEngine | null>(null);
   const toolGroupRef = useRef<ToolGroup | null>(null);
@@ -113,6 +172,8 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady,
   const labelmapRendererRef = useRef<LabelmapRenderer | null>(null);
   const contourRendererRef = useRef<ContourRenderer | null>(null);
   const overlayStageRef = useRef<OverlayCompositorStage | null>(null);
+  const shutterStageRef = useRef<DisplayShutterStage | null>(null);
+  const gspsAppliedRef = useRef(false);
   const imageIdRef = useRef<string>(imageId ?? '');
   const modeRef = useRef<InteractionMode>(mode);
   modeRef.current = mode;
@@ -200,6 +261,11 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady,
       const overlayStage = new OverlayCompositorStage();
       overlayStageRef.current = overlayStage;
       (viewport as import('../../../rendering').Viewport).addPipelineStage(overlayStage);
+
+      // Add DisplayShutterStage to the pipeline (after overlay, before final compositing)
+      const shutterStage = new DisplayShutterStage();
+      shutterStageRef.current = shutterStage;
+      (viewport as import('../../../rendering').Viewport).addPipelineStage(shutterStage);
     }
 
     // Provide backward-compatible ICanvasController shim
@@ -282,6 +348,7 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady,
       labelmapRendererRef.current = null;
       contourRendererRef.current = null;
       overlayStageRef.current = null;
+      shutterStageRef.current = null;
       toolGroupRef.current?.destroy();
       toolGroupRef.current = null;
       engine.destroy();
@@ -310,6 +377,51 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady,
       engineRef.current.renderViewport(VIEWPORT_ID);
     }
   }, [overlayGroup]);
+
+  // Apply GSPS features: annotations, spatial transform, invert, shutters
+  useEffect(() => {
+    if (!gspsResult || !engineRef.current || gspsAppliedRef.current) return;
+    const viewport = engineRef.current.getViewport(VIEWPORT_ID);
+    if (!viewport) return;
+
+    gspsAppliedRef.current = true;
+
+    // 1. Presentation LUT Shape (INVERSE → invert)
+    if (gspsResult.presentationLutShape === 'INVERSE') {
+      viewport.setProperties({ invert: true });
+    }
+
+    // 2. Spatial transform (rotation, flip)
+    const spatial = gspsResult.spatialTransform;
+    if (spatial) {
+      const camera = viewport.getCamera();
+      if (spatial.imageHorizontalFlip) {
+        camera.flipHorizontal();
+      }
+      if (spatial.imageRotation) {
+        camera.rotate(spatial.imageRotation);
+      }
+    }
+
+    // 3. Display shutters
+    if (gspsResult.shutters.length > 0 && shutterStageRef.current) {
+      shutterStageRef.current.setShutters(gspsResult.shutters);
+    }
+
+    // 4. Graphic/Text annotations — feed into annotationManager
+    const currentImgId = imageIdRef.current;
+    if (currentImgId && gspsResult.annotationsByImage.size > 0) {
+      addGSPSAnnotations(gspsResult.annotationsByImage, currentImgId, VIEWPORT_ID);
+    }
+
+    // Trigger re-render to apply all changes
+    engineRef.current.renderViewport(VIEWPORT_ID);
+  }, [gspsResult]);
+
+  // Reset GSPS applied flag when switching images
+  useEffect(() => {
+    gspsAppliedRef.current = false;
+  }, [imageId]);
 
   // Update imageId ref and viewport ref when the displayed image changes
   useEffect(() => {
