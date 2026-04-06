@@ -84,11 +84,13 @@ export class RectangleROITool extends AnnotationTool {
     annotation.invalidated = false;
 
     const [p0, p1] = annotation.data.handles.points;
-    const w = Math.abs(p1.x - p0.x);
-    const h = Math.abs(p1.y - p0.y);
+    const ps = this.viewportRef?.pixelSpacing;
+    const w = Math.abs(p1.x - p0.x) * (ps ? ps[1] : 1);
+    const h = Math.abs(p1.y - p0.y) * (ps ? ps[0] : 1);
     const area = w * h;
+    const areaUnit = ps ? 'mm\u00B2' : 'px\u00B2';
     annotation.data.cachedStats = { area, width: w, height: h };
-    annotation.data.label = `${area.toFixed(1)} px²`;
+    annotation.data.label = `${area.toFixed(2)} ${areaUnit}`;
 
     if (isNewAnnotation) annotationHistory.recordAdd(annotation);
     annotationManager.triggerAnnotationCompleted(annotation);

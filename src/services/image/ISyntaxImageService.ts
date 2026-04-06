@@ -118,32 +118,28 @@ export class ISyntaxImageService {
 
     const buffer = await arrayBuffer;
 
+    // Keep a copy of the raw bytes for main-thread fallback.
+    // The original buffer may be detached when transferred to a worker.
+    const rawCopy = new Uint8Array(buffer).slice();
+
     let decoded: DecodedImage;
 
     if (this.useWorkers) {
       try {
         // Parse the small header on main thread BEFORE transferring buffer
         // to init main-thread state (needed for fallback in loadLevel).
-        this._ensureMainThreadState(new Uint8Array(buffer));
+        this._ensureMainThreadState(rawCopy);
         // Transfer the original buffer to the worker (zero-copy, no .slice())
         decoded = await this._decodeInitImageInWorker(buffer, rows, cols);
       } catch (workerErr) {
         console.warn('Worker decode failed for InitImage, falling back to main thread:', workerErr);
-        // Buffer may be detached after transfer attempt; re-fetch if needed
-        if (this._iSyntaxImage && this._processor) {
-          // Main-thread state was already initialized — use cached processor
-          const zlv = this._iSyntaxImage.getZoomLevelView(this._totalLevels);
-          if (zlv) {
-            decoded = this._zlvToImageData(zlv);
-          } else {
-            throw workerErr; // Cannot recover without buffer
-          }
-        } else {
-          throw workerErr;
-        }
+        // Reset main-thread state so _decodeInitImageMainThread can rebuild it
+        this._iSyntaxImage = null;
+        this._processor = null;
+        decoded = await this._decodeInitImageMainThread(rawCopy, rows, cols);
       }
     } else {
-      decoded = await this._decodeInitImageMainThread(new Uint8Array(buffer), rows, cols);
+      decoded = await this._decodeInitImageMainThread(rawCopy, rows, cols);
     }
 
     // Update quality status

@@ -361,6 +361,7 @@ export default function ViewerPage() {
                 onControllerReady={handleControllerReady}
                 overlayGroup={overlaysEnabled ? overlayGroup : null}
                 gspsResult={gspsResult}
+                pixelSpacing={currentMetadata?.pixelSpacing}
               />
               <ViewportOverlay
                 metadata={currentMetadata}

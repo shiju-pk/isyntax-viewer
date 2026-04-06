@@ -161,4 +161,6 @@ export interface ToolViewportRef {
   imageId: string;
   /** Trigger a full render cycle (viewport + overlays) through the engine. */
   triggerRender: () => void;
+  /** Pixel spacing in mm [row, column]. When available, measurements are displayed in mm. */
+  pixelSpacing?: [number, number];
 }

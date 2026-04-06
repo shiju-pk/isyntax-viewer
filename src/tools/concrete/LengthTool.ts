@@ -96,9 +96,13 @@ export class LengthTool extends AnnotationTool {
 
     // Calculate stats
     const [p0, p1] = annotation.data.handles.points;
-    const dist = this.worldDistance(p0, p1);
+    const ps = this.viewportRef?.pixelSpacing;
+    const dx = (p1.x - p0.x) * (ps ? ps[1] : 1);
+    const dy = (p1.y - p0.y) * (ps ? ps[0] : 1);
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const unit = ps ? 'mm' : 'px';
     annotation.data.cachedStats = { length: dist };
-    annotation.data.label = `${dist.toFixed(1)} px`;
+    annotation.data.label = `${dist.toFixed(2)} ${unit}`;
 
     if (isNewAnnotation) {
       annotationHistory.recordAdd(annotation);

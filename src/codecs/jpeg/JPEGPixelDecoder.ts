@@ -24,8 +24,24 @@ class JPEGPixelDecoder implements IPixelDecoder {
 
     _initPromise = (async () => {
       const wasmUrl = new URL('./wasm/libjpegturbowasm_decode.wasm', import.meta.url).toString();
-      const { default: factory }: { default: LibjpegTurboModuleFactory } =
+      const mod: any =
         await import(/* @vite-ignore */ new URL('./wasm/libjpegturbowasm_decode.js', import.meta.url).toString());
+
+      // Resolve the factory from the Emscripten glue module.
+      // With the `export default` we appended, `mod.default` should be the factory.
+      // Fall back to other known patterns just in case.
+      const factory: LibjpegTurboModuleFactory =
+        typeof mod.default === 'function' ? mod.default :
+        typeof mod.libjpegturbowasm_decode === 'function' ? mod.libjpegturbowasm_decode :
+        typeof mod === 'function'         ? mod :
+        undefined as any;
+
+      if (typeof factory !== 'function') {
+        console.error('[JPEGPixelDecoder] Module resolved to:', mod, 'keys:', Object.keys(mod));
+        throw new Error(
+          `[JPEGPixelDecoder] WASM factory not found. Module keys: ${Object.keys(mod).join(', ')}`
+        );
+      }
 
       const instance = await factory({
         locateFile: (f: string) => (f.endsWith('.wasm') ? wasmUrl : f),

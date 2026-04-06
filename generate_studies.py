@@ -31,8 +31,8 @@ MINIO_ENDPOINT  = "localhost:9000"
 MINIO_ACCESS    = "admin"
 MINIO_SECRET    = "password"
 MINIO_SECURE    = False          # set True if TLS is enabled
-BUCKET_NAME     = "ispacs-cloud-udm-studies"
-DEFAULT_OUTPUT  = Path(__file__).parent / "src" / "studies2.json"
+BUCKET_NAME     = "test-stack"
+DEFAULT_OUTPUT  = Path(__file__).parent / "src" / "studies3.json"
 # ─────────────────────────────────────────────────────────────────────────────
 
 

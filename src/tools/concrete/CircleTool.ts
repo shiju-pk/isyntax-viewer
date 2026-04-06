@@ -87,13 +87,16 @@ export class CircleTool extends AnnotationTool {
     annotation.invalidated = false;
 
     const [center, edge] = annotation.data.handles.points;
-    const dx = edge.x - center.x;
-    const dy = edge.y - center.y;
+    const ps = this.viewportRef?.pixelSpacing;
+    const dx = (edge.x - center.x) * (ps ? ps[1] : 1);
+    const dy = (edge.y - center.y) * (ps ? ps[0] : 1);
     const radius = Math.sqrt(dx * dx + dy * dy);
     const area = Math.PI * radius * radius;
+    const unit = ps ? 'mm' : 'px';
+    const areaUnit = ps ? 'mm\u00B2' : 'px\u00B2';
 
     annotation.data.cachedStats = { radius, area };
-    annotation.data.label = `A: ${area.toFixed(1)} px²  r: ${radius.toFixed(1)} px`;
+    annotation.data.label = `A: ${area.toFixed(2)} ${areaUnit}  r: ${radius.toFixed(2)} ${unit}`;
 
     if (isNewAnnotation) annotationHistory.recordAdd(annotation);
     annotationManager.triggerAnnotationCompleted(annotation);

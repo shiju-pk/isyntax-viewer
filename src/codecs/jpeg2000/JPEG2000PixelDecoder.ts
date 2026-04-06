@@ -24,8 +24,22 @@ class JPEG2000PixelDecoder implements IPixelDecoder {
     _initPromise = (async () => {
       // Dynamic import of the Emscripten JS glue (vendored WASM build)
       const wasmUrl = new URL('./wasm/openjpegwasm_decode.wasm', import.meta.url).toString();
-      const { default: factory }: { default: OpenJpegModuleFactory } =
+      const mod: any =
         await import(/* @vite-ignore */ new URL('./wasm/openjpegwasm_decode.js', import.meta.url).toString());
+
+      // Resolve the factory — `export default` was appended to the glue file.
+      const factory: OpenJpegModuleFactory =
+        typeof mod.default === 'function' ? mod.default :
+        typeof mod.OpenJPEGWASM === 'function' ? mod.OpenJPEGWASM :
+        typeof mod === 'function'         ? mod :
+        undefined as any;
+
+      if (typeof factory !== 'function') {
+        console.error('[JPEG2000PixelDecoder] Module resolved to:', mod, 'keys:', Object.keys(mod));
+        throw new Error(
+          `[JPEG2000PixelDecoder] WASM factory not found. Module keys: ${Object.keys(mod).join(', ')}`
+        );
+      }
 
       const instance = await factory({
         locateFile: (f: string) => (f.endsWith('.wasm') ? wasmUrl : f),

@@ -84,11 +84,13 @@ export class EllipticalROITool extends AnnotationTool {
     annotation.invalidated = false;
 
     const [p0, p1] = annotation.data.handles.points;
-    const rx = Math.abs(p1.x - p0.x) / 2;
-    const ry = Math.abs(p1.y - p0.y) / 2;
+    const ps = this.viewportRef?.pixelSpacing;
+    const rx = (Math.abs(p1.x - p0.x) / 2) * (ps ? ps[1] : 1);
+    const ry = (Math.abs(p1.y - p0.y) / 2) * (ps ? ps[0] : 1);
     const area = Math.PI * rx * ry;
+    const areaUnit = ps ? 'mm\u00B2' : 'px\u00B2';
     annotation.data.cachedStats = { area, rx, ry };
-    annotation.data.label = `${area.toFixed(1)} px²`;
+    annotation.data.label = `${area.toFixed(2)} ${areaUnit}`;
 
     if (isNewAnnotation) annotationHistory.recordAdd(annotation);
     annotationManager.triggerAnnotationCompleted(annotation);

@@ -57,6 +57,8 @@ interface MainImageProps {
   overlayGroup?: OverlayGroup | null;
   /** GSPS application result with annotations, shutters, spatial transform, etc. */
   gspsResult?: GSPSApplicationResult | null;
+  /** Pixel spacing in mm [row, column] — used for annotation unit conversion. */
+  pixelSpacing?: [number, number];
 }
 
 const VIEWPORT_ID = 'main-viewport';
@@ -163,7 +165,7 @@ function addGSPSAnnotations(
   }
 }
 
-export default function MainImage({ imageData, mode, imageId, onControllerReady, overlayGroup, gspsResult }: MainImageProps) {
+export default function MainImage({ imageData, mode, imageId, onControllerReady, overlayGroup, gspsResult, pixelSpacing }: MainImageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<RenderingEngine | null>(null);
   const toolGroupRef = useRef<ToolGroup | null>(null);
@@ -210,6 +212,7 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady,
         canvas: viewport.canvas,
         imageId: imageIdRef.current,
         triggerRender: () => engine.renderViewport(VIEWPORT_ID),
+        pixelSpacing,
       });
 
       // Activate the current mode's tool
@@ -439,12 +442,13 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady,
         canvas: viewport.canvas,
         imageId: imageIdRef.current,
         triggerRender: () => engine.renderViewport(VIEWPORT_ID),
+        pixelSpacing,
       });
     }
 
     // Clear SVG overlays when switching images — new image will re-render its own annotations
     svgHelperRef.current?.clearAll();
-  }, [imageId]);
+  }, [imageId, pixelSpacing]);
 
   // Update active tool when mode changes
   useEffect(() => {

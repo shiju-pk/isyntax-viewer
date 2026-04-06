@@ -63,8 +63,8 @@ export function detectStreamCodec(
       const b2 = data[off + 2];
       const b3 = data[off + 3];
 
-      // JPEG: FF D8 FF E0
-      if (b0 === 0xFF && b1 === 0xD8 && b2 === 0xFF && b3 === 0xE0) {
+      // JPEG: FF D8 FF xx (SOI + any marker — not just APP0/JFIF)
+      if (b0 === 0xFF && b1 === 0xD8 && b2 === 0xFF) {
         return { codec: 'jpeg', dataOffset: off, dataLength: len };
       }
       // JPEG 2000 JP2 box: 00 00 00 0C

@@ -19,3 +19,5 @@ else if (typeof define === 'function' && define['amd'])
   define([], function() { return libjpegturbowasm_decode; });
 else if (typeof exports === 'object')
   exports["libjpegturbowasm_decode"] = libjpegturbowasm_decode;
+
+export default libjpegturbowasm_decode;
