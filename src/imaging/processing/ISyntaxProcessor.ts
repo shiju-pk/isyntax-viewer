@@ -73,16 +73,6 @@ class ISyntaxProcessor {
 
     const fmt = CodecConstants.instance.ImageFormat;
 
-    // Diagnostic: dump the first 16 bytes of compressed data to verify signatures
-    const dLen = Math.min(16, iir.compressedPartition.length);
-    const hexDump = Array.from(iir.compressedPartition.subarray(0, dLen))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join(' ');
-    console.debug(
-      `[ProcessInitImageResponseAsync] format=${iir.format},`,
-      `compressedLen=${iir.compressedPartitionLength},`,
-      `first ${dLen} bytes: ${hexDump}`,
-    );
 
     // Signature-based codec detection (mirrors C++ ScaledGenericDecode):
     // The header format field gives us JPEG_RGB/JPEG_MONO or J2K_RGB/J2K_MONO,
@@ -92,10 +82,6 @@ class ISyntaxProcessor {
     let compressedData = iir.compressedPartition;
     const sig = detectStreamCodec(iir.compressedPartition);
 
-    console.debug(
-      `[ProcessInitImageResponseAsync] signature: codec=${sig.codec},`,
-      `dataOffset=${sig.dataOffset}, dataLength=${sig.dataLength}`,
-    );
 
     if (sig.codec !== 'unknown') {
       const isColor = fmt.isColor(iir.format);
@@ -113,7 +99,6 @@ class ISyntaxProcessor {
       }
     }
 
-    console.debug(`[ProcessInitImageResponseAsync] resolvedFormat=${resolvedFormat}, dataLen=${compressedData.length}`);
 
     const decoder = DecoderRegistry.getDecoder(resolvedFormat);
     if (!decoder) {

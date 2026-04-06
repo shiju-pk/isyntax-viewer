@@ -16,13 +16,6 @@ class InitImageResponseParser {
     let pos = 0;
 
     // --- Common header (all formats) ---
-    // Diagnostic: hex dump of first 64 bytes to debug server response layout
-    const dumpLen = Math.min(64, initImageServerResponse.byteLength);
-    const hexBytes = Array.from(initImageServerResponse.subarray(0, dumpLen))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join(' ');
-    console.debug(`[InitImageParser] Raw first ${dumpLen} bytes:`, hexBytes,
-      `totalLen=${initImageServerResponse.byteLength}`);
 
     iir.version = iirDataView.getInt32(pos, true);
     pos += 4;
@@ -31,7 +24,6 @@ class InitImageResponseParser {
     iir.format = fmt.getImageFormat(rawFormatInt);
     pos += 4;
 
-    console.debug(`[InitImageParser] version=0x${iir.version.toString(16)}, formatInt=${rawFormatInt}, format=${iir.format}`);
 
     if (fmt.isISyntaxFormat(iir.format)) {
       // --- iSyntax wavelet format (MONO / YBR*) ---
@@ -137,19 +129,7 @@ class InitImageResponseParser {
       iir.serverResponse = initImageServerResponse;
       iir.coeffsOffset = headerEnd;
 
-      // Diagnostic: remove after confirming JPEG/J2K parsing works
-      const cpHex = iir.compressedPartition
-        ? Array.from(iir.compressedPartition.subarray(0, Math.min(16, iir.compressedPartition.length)))
-            .map(b => b.toString(16).padStart(2, '0')).join(' ')
-        : 'null';
-      console.debug(
-        '[InitImageParser] JPEG/J2K:',
-        `format=${iir.format}, rows=${iir.rows}, cols=${iir.cols},`,
-        `dataLength=${iir.dataLength}, sigOffset=${sigOffset}, headerEnd=${headerEnd},`,
-        `compressedPartitionLen=${iir.compressedPartitionLength},`,
-        `first16=${cpHex}`,
-      );
-
+      
     } else {
       throw new Error('Unsupported image format: ' + iir.format);
     }
