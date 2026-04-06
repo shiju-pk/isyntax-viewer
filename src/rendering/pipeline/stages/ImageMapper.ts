@@ -28,7 +28,7 @@ export class ImageMapper implements IRenderStage {
     if (planes === 1 || format === 'MONO') {
       this.convertMono(pixelData, rgba, rows, cols, context);
     } else {
-      this.convertYBR(pixelData, rgba, rows, cols);
+      this.convertYBR(pixelData, rgba, rows, cols, format);
     }
 
     return imageData;
@@ -80,27 +80,29 @@ export class ImageMapper implements IRenderStage {
     pixelData: ArrayLike<number>,
     rgba: Uint8ClampedArray,
     rows: number,
-    cols: number
+    cols: number,
+    format?: string
   ): void {
     const totalPixels = rows * cols;
-    const yOffset = 0;
-    const cbOffset = totalPixels;
-    const crOffset = totalPixels * 2;
+
+    // Range expansion: YBRFE/YBRPE use 1/8.0; YBRF8/YBRP8 use 1.0
+    // Matches C++ SignalProcessingUtilities::YBRFE_to_RGB_Band / 1.5 rgbprocessor.js
+    const rangeExpansion =
+      (format === 'YBRFE' || format === 'YBRPE') ? 0.125 : 1.0;
 
     for (let i = 0; i < totalPixels; i++) {
-      const y = pixelData[yOffset + i];
-      const cb = pixelData[cbOffset + i];
-      const cr = pixelData[crOffset + i];
+      const yy  = pixelData[i] * rangeExpansion;
+      const ccb = pixelData[totalPixels + i] * rangeExpansion - 128.0;
+      const ccr = pixelData[totalPixels * 2 + i] * rangeExpansion - 128.0;
 
-      // ITU-R BT.601 YCbCr → RGB
-      const r = y + 1.402 * cr;
-      const g = y - 0.344136 * cb - 0.714136 * cr;
-      const b = y + 1.772 * cb;
+      const r = yy + 1.4019 * ccr + 0.5;
+      const g = yy - 0.7141 * ccr - 0.3441 * ccb + 0.5;
+      const b = yy + 1.7718 * ccb + 0.5;
 
       const idx = i * 4;
-      rgba[idx] = Math.max(0, Math.min(255, r)) | 0;
-      rgba[idx + 1] = Math.max(0, Math.min(255, g)) | 0;
-      rgba[idx + 2] = Math.max(0, Math.min(255, b)) | 0;
+      rgba[idx] = r > 255 ? 255 : r < 0 ? 0 : r | 0;
+      rgba[idx + 1] = g > 255 ? 255 : g < 0 ? 0 : g | 0;
+      rgba[idx + 2] = b > 255 ? 255 : b < 0 ? 0 : b | 0;
       rgba[idx + 3] = 255;
     }
   }

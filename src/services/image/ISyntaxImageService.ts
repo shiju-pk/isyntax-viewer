@@ -558,7 +558,8 @@ export class ISyntaxImageService {
       const fmtConst = CodecConstants.instance.ImageFormat;
 
       if (fmtConst.isJPEGFormat(format)) {
-        // JPEG / J2K: pixel-interleaved RGB (R,G,B,R,G,B,...) from WASM decoder
+        // JPEG / J2K: pixel-interleaved RGB (R,G,B,...) from WASM decoder.
+        // libjpeg-turbo converts YCbCr→RGB internally during decompression.
         const totalPixels = rows * cols;
         for (let i = 0; i < totalPixels; i++) {
           const srcIdx = i * 3;
@@ -569,24 +570,25 @@ export class ISyntaxImageService {
           rgba[dstIdx + 3] = 255;
         }
       } else {
-        // iSyntax YBR → RGB conversion (3-plane interleaved)
+        // iSyntax YBR → RGB conversion (3-plane planar: [Y...][Cb...][Cr...])
+        // Matches C++ SignalProcessingUtilities::YBRFE_to_RGB_Band / 1.5 rgbprocessor.js
         const totalPixels = rows * cols;
-        const yPlane = pixelData.subarray(0, totalPixels);
-        const cbPlane = pixelData.subarray(totalPixels, totalPixels * 2);
-        const crPlane = pixelData.subarray(totalPixels * 2, totalPixels * 3);
+
+        // Range expansion: YBRFE/YBRPE use 1/8.0; YBRF8/YBRP8 use 1.0
+        const rangeExpansion =
+          (format === fmtConst.YBRFE || format === fmtConst.YBRPE) ? 0.125 : 1.0;
 
         for (let i = 0; i < totalPixels; i++) {
-          const y = yPlane[i];
-          const cb = cbPlane[i];
-          const cr = crPlane[i];
+          const yy  = pixelData[i] * rangeExpansion;
+          const ccb = pixelData[totalPixels + i] * rangeExpansion - 128.0;
+          const ccr = pixelData[totalPixels * 2 + i] * rangeExpansion - 128.0;
 
-          // YCbCr to RGB conversion (ITU-R BT.601)
-          const r = y + 1.402 * cr;
-          const g = y - 0.344136 * cb - 0.714136 * cr;
-          const b = y + 1.772 * cb;
+          const r = yy + 1.4019 * ccr + 0.5;
+          const g = yy - 0.7141 * ccr - 0.3441 * ccb + 0.5;
+          const b = yy + 1.7718 * ccb + 0.5;
 
           const idx = i << 2;
-          rgba[idx] = r > 255 ? 255 : r < 0 ? 0 : r | 0;
+          rgba[idx]     = r > 255 ? 255 : r < 0 ? 0 : r | 0;
           rgba[idx + 1] = g > 255 ? 255 : g < 0 ? 0 : g | 0;
           rgba[idx + 2] = b > 255 ? 255 : b < 0 ? 0 : b | 0;
           rgba[idx + 3] = 255;
