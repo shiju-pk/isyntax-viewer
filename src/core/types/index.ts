@@ -14,6 +14,7 @@ export type {
 
 export type {
   DicomImageMetadata,
+  ModalityLUT,
   StudyInfo,
   SeriesGroup,
   StudyDoc,

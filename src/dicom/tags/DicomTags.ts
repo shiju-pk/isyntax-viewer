@@ -26,6 +26,13 @@ export const DICOM_TAGS = {
   WindowWidth: '00281051',
   RescaleIntercept: '00281052',
   RescaleSlope: '00281053',
+
+  // Modality LUT Sequence (0028,3000)
+  ModalityLUTSequence: '00283000',
+  LUTDescriptor: '00283002',
+  LUTExplanation: '00283003',
+  ModalityLUTType: '00283004',
+  LUTData: '00283006',
   ImagerPixelSpacing: '00181164',
   ImageOrientationPatient: '00200037',
   ImagePositionPatient: '00200032',

@@ -1,4 +1,4 @@
-import type { DicomImageMetadata, StudyInfo } from '../../core/types';
+import type { DicomImageMetadata, ModalityLUT, StudyInfo } from '../../core/types';
 import { DICOM_TAGS } from '../tags/DicomTags';
 import { NON_IMAGE_SOP_CLASSES } from '../sop/SopClassRegistry';
 
@@ -170,6 +170,73 @@ function applyTagToMetadata(
 }
 
 /**
+ * Parse a ModalityLUTSequence (0028,3000) from a StudyDoc XML sqElement.
+ * Actual XML structure from the server:
+ *   <sqElement tag="00283000">
+ *     <val1 nbE="4">
+ *       <element tag="00283002" nbE="3" val1="256" val2="0" val3="8"/>
+ *       <element tag="00283003" val="HITACHI DR LUT"/>
+ *       <element tag="00283004" val="US"/>
+ *       <binary tag="00283006" Encode="base64" val="AwADAAMA..."/>
+ *     </val1>
+ *   </sqElement>
+ */
+function parseModalityLUTSequence(seqElement: Element): ModalityLUT | undefined {
+  // First sequence item is <val1> (could also be <item> in some formats)
+  const item = seqElement.querySelector('val1') ?? seqElement.querySelector('item');
+  if (!item) return undefined;
+
+  let descriptor: number[] | undefined;
+  let lutData: number[] | undefined;
+
+  const children = item.children;
+  for (let i = 0; i < children.length; i++) {
+    const el = children[i];
+    const tag = el.getAttribute('tag');
+
+    if (tag === DICOM_TAGS.LUTDescriptor && el.tagName === 'element') {
+      const val = extractElementValue(el);
+      if (Array.isArray(val) && val.length === 3) {
+        descriptor = val.map(Number);
+      }
+    } else if (tag === DICOM_TAGS.LUTData) {
+      if (el.tagName === 'binary') {
+        // Base64-encoded OW data (uint16 LE values)
+        const b64 = el.getAttribute('val') || el.textContent || '';
+        if (b64) {
+          const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+          const count = raw.length >> 1; // 2 bytes per uint16
+          lutData = new Array(count);
+          const dv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+          for (let k = 0; k < count; k++) {
+            lutData[k] = dv.getUint16(k * 2, true); // little-endian
+          }
+        }
+      } else {
+        // Fallback: multi-value element (val1, val2, ...)
+        const val = extractElementValue(el);
+        if (Array.isArray(val)) {
+          lutData = val.map(Number);
+        }
+      }
+    }
+  }
+
+  if (!descriptor || !lutData) return undefined;
+
+  // Per DICOM spec: numEntries of 0 means 65536
+  let numEntries = descriptor[0];
+  if (numEntries === 0) numEntries = 65536;
+
+  return {
+    numEntries,
+    firstValueMapped: descriptor[1],
+    numBitsPerEntry: descriptor[2],
+    lut: lutData,
+  };
+}
+
+/**
  * Extract template (default) metadata for a series from _study.xml.
  * The study XML structure is:
  *   <xmlStudy>
@@ -204,8 +271,24 @@ function extractTemplateMetadata(
       const elements = templateEl.children;
       for (let j = 0; j < elements.length; j++) {
         const el = elements[j];
-        if (el.tagName !== 'element') continue;
+        const tagName = el.tagName;
+
+        if (tagName === 'sqElement') {
+          const tag = el.getAttribute('tag');
+          if (tag === DICOM_TAGS.ModalityLUTSequence) {
+            const lutSeq = parseModalityLUTSequence(el);
+            if (lutSeq) meta.modalityLUT = lutSeq;
+          }
+          continue;
+        }
+
+        if (tagName !== 'element') continue;
         const tag = el.getAttribute('tag');
+        if (tag === DICOM_TAGS.ModalityLUTSequence) {
+          const lutSeq = parseModalityLUTSequence(el);
+          if (lutSeq) meta.modalityLUT = lutSeq;
+          continue;
+        }
         const value = extractElementValue(el);
         if (tag && value) {
           applyTagToMetadata(meta, tag, value);
@@ -256,6 +339,20 @@ export function extractImageMetadata(
       const el = elements[j];
       const tagName = el.tagName;
 
+      if (tagName === 'sqElement') {
+        const tag = el.getAttribute('tag');
+        if (tag === DICOM_TAGS.ModalityLUTSequence) {
+          const op = el.getAttribute('op');
+          if (op === '-') {
+            meta.modalityLUT = undefined;
+          } else {
+            const lutSeq = parseModalityLUTSequence(el);
+            if (lutSeq) meta.modalityLUT = lutSeq;
+          }
+        }
+        continue;
+      }
+
       if (tagName === 'element' || tagName === 'diff') {
         const op = el.getAttribute('op');
         const tag = el.getAttribute('tag');
@@ -266,6 +363,15 @@ export function extractImageMetadata(
           if (tag.startsWith(DICOM_TAGS.OverlayStartTag) && meta.overlayAttributes) {
             delete meta.overlayAttributes[tag];
           }
+          if (tag === DICOM_TAGS.ModalityLUTSequence) {
+            meta.modalityLUT = undefined;
+          }
+          continue;
+        }
+
+        if (tag === DICOM_TAGS.ModalityLUTSequence) {
+          const lutSeq = parseModalityLUTSequence(el);
+          if (lutSeq) meta.modalityLUT = lutSeq;
           continue;
         }
 

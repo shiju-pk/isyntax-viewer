@@ -24,24 +24,12 @@ precision highp float;
 in vec2 v_texCoord;
 
 uniform sampler2D u_image;
-uniform float u_windowCenter;
-uniform float u_windowWidth;
-uniform bool u_applyVOI;
 uniform bool u_invert;
 
 out vec4 fragColor;
 
 void main() {
   vec4 color = texture(u_image, v_texCoord);
-
-  if (u_applyVOI) {
-    float lower = (u_windowCenter - u_windowWidth * 0.5) / 255.0;
-    float upper = (u_windowCenter + u_windowWidth * 0.5) / 255.0;
-    float range = upper - lower;
-    if (range > 0.0) {
-      color.rgb = clamp((color.rgb - lower) / range, 0.0, 1.0);
-    }
-  }
 
   if (u_invert) {
     color.rgb = 1.0 - color.rgb;
@@ -95,9 +83,6 @@ function createProgram(
 interface UniformLocations {
   u_transform: WebGLUniformLocation | null;
   u_image: WebGLUniformLocation | null;
-  u_windowCenter: WebGLUniformLocation | null;
-  u_windowWidth: WebGLUniformLocation | null;
-  u_applyVOI: WebGLUniformLocation | null;
   u_invert: WebGLUniformLocation | null;
 }
 
@@ -110,10 +95,7 @@ export class WebGLBackend implements IRendererBackend {
   private uniforms!: UniformLocations;
   private initialized = false;
 
-  // VOI state (set externally)
-  private windowCenter = 128;
-  private windowWidth = 256;
-  private applyVOI = false;
+  // Invert state (set externally)
   private invert = false;
   private _transformMatrix = new Float32Array(9);
 
@@ -143,9 +125,6 @@ export class WebGLBackend implements IRendererBackend {
     this.uniforms = {
       u_transform: gl.getUniformLocation(this.program, 'u_transform'),
       u_image: gl.getUniformLocation(this.program, 'u_image'),
-      u_windowCenter: gl.getUniformLocation(this.program, 'u_windowCenter'),
-      u_windowWidth: gl.getUniformLocation(this.program, 'u_windowWidth'),
-      u_applyVOI: gl.getUniformLocation(this.program, 'u_applyVOI'),
       u_invert: gl.getUniformLocation(this.program, 'u_invert'),
     };
 
@@ -190,10 +169,12 @@ export class WebGLBackend implements IRendererBackend {
     this.initialized = true;
   }
 
-  setVOI(windowCenter: number, windowWidth: number, apply = true): void {
-    this.windowCenter = windowCenter;
-    this.windowWidth = windowWidth;
-    this.applyVOI = apply;
+  /**
+   * @deprecated VOI windowing is now applied in ISyntaxImageService.rewindow().
+   * This method is kept as a no-op for backward compatibility.
+   */
+  setVOI(_windowCenter: number, _windowWidth: number, _apply = true): void {
+    // No-op: VOI is baked into the ImageData by the service.
   }
 
   setInvert(invert: boolean): void {
@@ -280,9 +261,6 @@ export class WebGLBackend implements IRendererBackend {
     gl.useProgram(this.program);
     gl.uniformMatrix3fv(this.uniforms.u_transform, false, m);
     gl.uniform1i(this.uniforms.u_image, 0);
-    gl.uniform1f(this.uniforms.u_windowCenter, this.windowCenter);
-    gl.uniform1f(this.uniforms.u_windowWidth, this.windowWidth);
-    gl.uniform1i(this.uniforms.u_applyVOI, this.applyVOI ? 1 : 0);
     gl.uniform1i(this.uniforms.u_invert, this.invert ? 1 : 0);
 
     gl.bindVertexArray(this.vao);

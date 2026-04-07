@@ -14,6 +14,8 @@ export interface DicomImageMetadata {
   // Modality LUT Module
   rescaleSlope: number;
   rescaleIntercept: number;
+  /** Non-linear Modality LUT table (takes precedence over rescaleSlope/Intercept when present) */
+  modalityLUT?: ModalityLUT;
   // Image Plane Module
   pixelSpacing?: [number, number];
   imageOrientationPatient?: number[];
@@ -30,6 +32,21 @@ export interface DicomImageMetadata {
   frameOfReferenceUID?: string;
   // Overlay attributes — raw 60xx tag map (tag → value) for overlay-engine parsing
   overlayAttributes?: Record<string, unknown>;
+}
+
+/**
+ * Non-linear Modality LUT from DICOM Modality LUT Sequence (0028,3000).
+ * Maps stored pixel values to output modality values via a lookup table.
+ */
+export interface ModalityLUT {
+  /** Number of entries in the LUT */
+  numEntries: number;
+  /** First stored pixel value mapped by the LUT */
+  firstValueMapped: number;
+  /** Number of bits per LUT entry (8 or 16) */
+  numBitsPerEntry: number;
+  /** The lookup table data */
+  lut: number[];
 }
 
 export interface StudyInfo {

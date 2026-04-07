@@ -5,6 +5,7 @@ import {
   eventBus,
   RenderingEvents,
   OverlayCompositorStage,
+  Viewport,
 } from '../../../rendering';
 import type { IViewport } from '../../../rendering';
 import type { ICanvasController } from '../../../core/interfaces';
@@ -59,6 +60,10 @@ interface MainImageProps {
   gspsResult?: GSPSApplicationResult | null;
   /** Pixel spacing in mm [row, column] — used for annotation unit conversion. */
   pixelSpacing?: [number, number];
+  /** Initial/effective window center (post-MLUT). Syncs viewport properties for the W/L tool. */
+  windowCenter?: number;
+  /** Initial/effective window width (post-MLUT). Syncs viewport properties for the W/L tool. */
+  windowWidth?: number;
 }
 
 const VIEWPORT_ID = 'main-viewport';
@@ -165,7 +170,7 @@ function addGSPSAnnotations(
   }
 }
 
-export default function MainImage({ imageData, mode, imageId, onControllerReady, overlayGroup, gspsResult, pixelSpacing }: MainImageProps) {
+export default function MainImage({ imageData, mode, imageId, onControllerReady, overlayGroup, gspsResult, pixelSpacing, windowCenter, windowWidth }: MainImageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<RenderingEngine | null>(null);
   const toolGroupRef = useRef<ToolGroup | null>(null);
@@ -368,6 +373,17 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady,
       engineRef.current.renderViewport(VIEWPORT_ID);
     }
   }, [imageData]);
+
+  // Sync effective WC/WW from the service to viewport properties so the
+  // WindowLevel tool initializes from the correct values (not default 128/256).
+  useEffect(() => {
+    if (windowCenter === undefined || windowWidth === undefined) return;
+    if (!engineRef.current) return;
+    const viewport = engineRef.current.getViewport(VIEWPORT_ID);
+    if (viewport instanceof Viewport) {
+      viewport.setProperties({ windowCenter, windowWidth });
+    }
+  }, [windowCenter, windowWidth]);
 
   // Update overlay stage when overlay group changes
   useEffect(() => {

@@ -133,12 +133,23 @@ export function useStudyLoader(studyId: string, stackId: string): StudyLoaderRes
     };
   }, [imageIds, studyId, stackId]);
 
-  // Bind metadata to services
+  // Bind metadata to services and re-render if image was already decoded
   useEffect(() => {
     if (metadataMap.size === 0 || imageIds.length === 0) return;
     servicesRef.current.forEach((service, instanceUID) => {
       const meta = metadataMap.get(instanceUID);
-      if (meta) service.dicomMetadata = meta;
+      if (meta) {
+        service.dicomMetadata = meta;
+
+        // If this is the currently displayed image and it was already rendered,
+        // update the displayed ImageData with the re-rendered version (e.g. MLUT applied).
+        if (service === serviceRef.current) {
+          const cached = service.cachedResult;
+          if (cached?.imageData) {
+            setCurrentImage(cached.imageData);
+          }
+        }
+      }
     });
   }, [metadataMap, imageIds]);
 

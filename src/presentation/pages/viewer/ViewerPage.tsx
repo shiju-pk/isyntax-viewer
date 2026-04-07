@@ -20,6 +20,8 @@ import { useStudyLoader } from '../../hooks/useStudyLoader';
 import { parseOverlayGroup } from '../../../overlay-engine/OverlayParser';
 import type { OverlayGroup } from '../../../overlay-engine/types';
 import type { GSPSApplicationResult } from '../../../gsps-engine/types';
+import { eventBus } from '../../../rendering/events/EventBus';
+import { RenderingEvents } from '../../../rendering/events/RenderingEvents';
 
 export default function ViewerPage() {
   const location = useLocation();
@@ -59,6 +61,15 @@ export default function ViewerPage() {
   }, [studyError]);
 
   const [overlaysEnabled, setOverlaysEnabled] = useState(true);
+
+  // Track the effective VOI (Window Center/Width) from the image service.
+  // Updated when a new image loads or when the WindowLevel tool changes values.
+  const effectiveVOI = useMemo(() => {
+    if (!currentImage) return undefined;
+    const service = serviceRef.current;
+    if (!service) return undefined;
+    return service.effectiveVOI;
+  }, [currentImage]);
 
   // Derived values — eliminates repeated inline lookups in JSX
   const currentInstanceUID = useMemo(() => {
@@ -107,6 +118,26 @@ export default function ViewerPage() {
   useEffect(() => {
     gspsVOIAppliedRef.current = false;
   }, [currentInstanceUID]);
+
+  // Listen for WindowLevel tool VOI changes and re-window from raw pixel data.
+  // This keeps the MLUT + VOI-LUT pipeline single-pass (matching AWV/cornerstone3D).
+  useEffect(() => {
+    const handler = (evt: { viewportId: string; windowCenter: number; windowWidth: number }) => {
+      const service = serviceRef.current;
+      if (!service) return;
+      // Skip if values match the currently applied VOI (avoids redundant rewindow
+      // from property-sync effects and prevents infinite render loops).
+      const currentVOI = service.effectiveVOI;
+      if (evt.windowCenter === currentVOI.windowCenter && evt.windowWidth === currentVOI.windowWidth) return;
+
+      const rewindowed = service.rewindow(evt.windowCenter, evt.windowWidth);
+      if (rewindowed) {
+        setCurrentImage(rewindowed);
+      }
+    };
+    eventBus.on(RenderingEvents.VOI_MODIFIED, handler);
+    return () => eventBus.off(RenderingEvents.VOI_MODIFIED, handler);
+  }, []);
 
   // Delay showing progress bar by 300ms to avoid flicker for fast loads
   useEffect(() => {
@@ -362,6 +393,8 @@ export default function ViewerPage() {
                 overlayGroup={overlaysEnabled ? overlayGroup : null}
                 gspsResult={gspsResult}
                 pixelSpacing={currentMetadata?.pixelSpacing}
+                windowCenter={effectiveVOI?.windowCenter}
+                windowWidth={effectiveVOI?.windowWidth}
               />
               <ViewportOverlay
                 metadata={currentMetadata}

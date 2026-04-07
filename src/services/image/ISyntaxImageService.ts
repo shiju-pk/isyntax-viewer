@@ -49,6 +49,14 @@ export class ISyntaxImageService {
   private _dicomMetadata: DicomImageMetadata | null = null;
   private _qualityStatus: ImageQualityStatus = ImageQualityStatus.NONE;
 
+  /** Cached raw pixel range (min/max) for efficient rewindowing */
+  private _cachedRawMin: number | undefined;
+  private _cachedRawMax: number | undefined;
+
+  /** The effective WC/WW applied to the current display (post-MLUT space) */
+  private _effectiveWindowCenter: number = 128;
+  private _effectiveWindowWidth: number = 256;
+
   /**
    * When true, decoding happens in a WebWorker (off main thread).
    * Set to false for debugging or environments without Worker support.
@@ -91,10 +99,38 @@ export class ISyntaxImageService {
 
   set dicomMetadata(meta: DicomImageMetadata | null) {
     this._dicomMetadata = meta;
+
+    // Re-render the cached image with the new metadata (e.g. MLUT, VOI).
+    // This is important when metadata arrives after initImage has already
+    // rendered the image (typical for JPEG-based workflows).
+    if (this._cachedResult?.rawPixelData) {
+      const cached = this._cachedResult;
+      const rawPixelData = cached.rawPixelData!;
+      const isMonochrome =
+        cached.planes === 1 ||
+        cached.format === CodecConstants.instance.ImageFormat.MONO;
+      if (isMonochrome) {
+        cached.imageData = this._convertToImageData(
+          rawPixelData,
+          cached.rows,
+          cached.cols,
+          cached.planes,
+          cached.format || 'MONO',
+        );
+      }
+    }
   }
 
   get dicomMetadata(): DicomImageMetadata | null {
     return this._dicomMetadata;
+  }
+
+  /** The effective window center/width applied to the current display (post-MLUT space) */
+  get effectiveVOI(): { windowCenter: number; windowWidth: number } {
+    return {
+      windowCenter: this._effectiveWindowCenter,
+      windowWidth: this._effectiveWindowWidth,
+    };
   }
 
   // ------------------------------------------------------------------
@@ -498,34 +534,32 @@ export class ISyntaxImageService {
     if (planes === 1 || format === CodecConstants.instance.ImageFormat.MONO) {
       const totalPixels = rows * cols;
 
-      // Apply Modality LUT (rescale slope/intercept) if available
+      // Linear modality LUT (rescale slope/intercept)
       const slope = meta?.rescaleSlope ?? 1;
       const intercept = meta?.rescaleIntercept ?? 0;
 
+      // Non-linear Modality LUT (0028,3000) is applied SERVER-SIDE during
+      // .dts consolidation (DICOMLUTHelper::ExtractDICOMLUTFromTags).
+      // Pixel values arriving here are already MLUT-transformed.
+      // Client-side pipeline: storedValue → rescaleSlope/Intercept → VOI window → 0-255.
+
       // Determine window/level
+      // When the server delivers JPEG (8-bit) data from a higher bit-depth
+      // source (e.g. 12-bit), the DICOM WC/WW values are for the original
+      // stored pixel depth.  Scale them to the 8-bit range so they match the
+      // actual pixel values from the JPEG decoder.
       let ww = meta?.windowWidth;
       let wc = meta?.windowCenter;
 
-      if (ww == null || wc == null) {
-        // Single pass: find min/max of raw pixel values (pre-modality)
-        let rawMin = pixelData[0];
-        let rawMax = rawMin;
-        for (let i = 1; i < totalPixels; i++) {
-          const v = pixelData[i];
-          if (v < rawMin) rawMin = v;
-          else if (v > rawMax) rawMax = v;
-        }
-        const minMod = rawMin * slope + intercept;
-        const maxMod = rawMax * slope + intercept;
-        ww = maxMod - minMod || 1;
-        wc = (maxMod + minMod) / 2;
+      const bitsStored = meta?.bitsStored ?? 8;
+      const isJPEG = CodecConstants.instance.ImageFormat.isJPEGFormat(format);
+      if (isJPEG && bitsStored > 8 && ww != null && wc != null) {
+        const scale = (Math.pow(2, bitsStored) - 1) / 255;
+        ww = ww / scale;
+        wc = wc / scale;
       }
 
-      const lower = wc - ww / 2;
-      const range = (wc + ww / 2) - lower || 1;
-
-      // Build a LUT indexed by raw pixel value for O(1) per-pixel windowing.
-      // Determine raw pixel range to size the LUT appropriately.
+      // Determine raw pixel range (used for auto-WW/WC and LUT sizing)
       let rawMin = pixelData[0];
       let rawMax = rawMin;
       for (let i = 1; i < totalPixels; i++) {
@@ -534,14 +568,35 @@ export class ISyntaxImageService {
         else if (v > rawMax) rawMax = v;
       }
 
+      // Cache raw pixel range for efficient rewindowing
+      this._cachedRawMin = rawMin;
+      this._cachedRawMax = rawMax;
+
+      if (ww == null || wc == null) {
+        // Auto-calculate WW/WC from pixel data range (linear modality space)
+        const minMod = rawMin * slope + intercept;
+        const maxMod = rawMax * slope + intercept;
+        ww = Math.abs(maxMod - minMod) || 1;
+        wc = (maxMod + minMod) / 2;
+      }
+
+      // Store the effective WC/WW for viewport initialisation
+      this._effectiveWindowCenter = wc;
+      this._effectiveWindowWidth = ww;
+
+      const lower = wc - ww / 2;
+      const range = ww || 1;
+
+      // Build a LUT indexed by raw pixel value for O(1) per-pixel windowing.
+      // Pipeline: storedValue → linear rescale → VOI window → 0-255
       const lutSize = rawMax - rawMin + 1;
       const invRange = 255 / range;
-      // Use Uint8Array for LUT — clamped to [0, 255]
       const lut = new Uint8Array(lutSize);
       for (let i = 0; i < lutSize; i++) {
         const mv = (rawMin + i) * slope + intercept;
-        const norm = (mv - lower) * invRange;
-        lut[i] = norm > 255 ? 255 : norm < 0 ? 0 : norm | 0;
+        let norm = (mv - lower) * invRange;
+        norm = norm > 255 ? 255 : norm < 0 ? 0 : norm | 0;
+        lut[i] = norm;
       }
 
       // Apply LUT — single array lookup per pixel, no FP math
@@ -617,6 +672,9 @@ export class ISyntaxImageService {
     const { rawPixelData, rows, cols } = cached;
     const totalPixels = rows * cols;
     const meta = this._dicomMetadata;
+    // Non-linear Modality LUT (0028,3000) is applied SERVER-SIDE during
+    // .dts consolidation — pixel values are already MLUT-transformed.
+    // Client-side pipeline: storedValue → rescaleSlope/Intercept → VOI window → 0-255.
     const slope = meta?.rescaleSlope ?? 1;
     const intercept = meta?.rescaleIntercept ?? 0;
 
@@ -624,21 +682,32 @@ export class ISyntaxImageService {
     const range = windowWidth || 1;
     const invRange = 255 / range;
 
-    // Build LUT indexed by raw pixel value
-    let rawMin = rawPixelData[0];
-    let rawMax = rawMin;
-    for (let i = 1; i < totalPixels; i++) {
-      const v = rawPixelData[i];
-      if (v < rawMin) rawMin = v;
-      else if (v > rawMax) rawMax = v;
+    // Use cached raw pixel range (or compute if not available)
+    let rawMin: number;
+    let rawMax: number;
+    if (this._cachedRawMin !== undefined && this._cachedRawMax !== undefined) {
+      rawMin = this._cachedRawMin;
+      rawMax = this._cachedRawMax;
+    } else {
+      rawMin = rawPixelData[0];
+      rawMax = rawMin;
+      for (let i = 1; i < totalPixels; i++) {
+        const v = rawPixelData[i];
+        if (v < rawMin) rawMin = v;
+        else if (v > rawMax) rawMax = v;
+      }
+      this._cachedRawMin = rawMin;
+      this._cachedRawMax = rawMax;
     }
 
+    // Pipeline: storedValue → linear rescale → VOI window → 0-255
     const lutSize = rawMax - rawMin + 1;
     const lut = new Uint8Array(lutSize);
     for (let i = 0; i < lutSize; i++) {
       const mv = (rawMin + i) * slope + intercept;
-      const norm = (mv - lower) * invRange;
-      lut[i] = norm > 255 ? 255 : norm < 0 ? 0 : norm | 0;
+      let norm = (mv - lower) * invRange;
+      norm = norm > 255 ? 255 : norm < 0 ? 0 : norm | 0;
+      lut[i] = norm;
     }
 
     const imageData = new ImageData(cols, rows);
@@ -652,6 +721,10 @@ export class ISyntaxImageService {
       rgba[idx + 2] = val;
       rgba[idx + 3] = 255;
     }
+
+    // Update effective VOI state
+    this._effectiveWindowCenter = windowCenter;
+    this._effectiveWindowWidth = windowWidth;
 
     // Update cached imageData so progressive loading picks it up
     cached.imageData = imageData;

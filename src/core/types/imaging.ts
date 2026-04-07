@@ -4,8 +4,11 @@ export interface IImageFrame {
   imageId: string;
 }
 
-export type ImageArray = Int16Array | Int32Array;
+export type ImageArray = Uint8Array | Int8Array | Uint16Array | Int16Array | Int32Array;
 export type ImageArrayConstructor =
+  | Uint8ArrayConstructor
+  | Int8ArrayConstructor
+  | Uint16ArrayConstructor
   | Int16ArrayConstructor
   | Int32ArrayConstructor;
 
