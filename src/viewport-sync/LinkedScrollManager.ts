@@ -145,6 +145,11 @@ export class LinkedScrollManager {
   // Queries
   // -----------------------------------------------------------------------
 
+  /** Get a registered viewport entry by ID. */
+  getViewport(viewportId: string): LinkedViewportEntry | undefined {
+    return this._viewports.get(viewportId);
+  }
+
   /** Get all viewport IDs linked to the given viewport. */
   getLinkedViewportIds(viewportId: string): string[] {
     const source = this._viewports.get(viewportId);

@@ -55,7 +55,6 @@ class JPEG2000PixelDecoder implements IPixelDecoder {
   async decode(data: Uint8Array, info: DecodeInfo): Promise<DecodedPixels> {
     await this.initialize();
     const decoder = _decoder!;
-    console.log('Decoding JPEG 2000 data with OpenJPEG WASM decoder...', { length: data.length, info });
     // Copy compressed data into WASM heap
     const encodedBuffer = decoder.getEncodedBuffer(data.length);
     encodedBuffer.set(data);

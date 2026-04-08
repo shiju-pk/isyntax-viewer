@@ -50,15 +50,31 @@ export class ImageMapper implements IRenderStage {
     let wc = context.properties.windowCenter;
 
     if (ww == null || wc == null) {
-      let min = Infinity;
-      let max = -Infinity;
-      for (let i = 0; i < totalPixels; i++) {
-        const v = pixelData[i] * slope + intercept;
-        if (v < min) min = v;
-        if (v > max) max = v;
+      const fmt = context.rawFormat ?? '';
+      const isJPEG = fmt === 'JPEG_MONO' || fmt === 'JPEG_RGB' ||
+                     fmt === 'J2K_MONO'  || fmt === 'J2K_RGB';
+      // Detect actual decoded bit depth: if rawPixelData is a Uint8Array or
+      // Int8Array the server already applied VOI windowing into 8-bit JPEG.
+      // >8-bit data (Uint16Array from J2K lossless) still needs proper windowing.
+      const raw = context.rawPixelData;
+      const decoded8bit = raw instanceof Uint8Array || raw instanceof Int8Array;
+
+      if (isJPEG && decoded8bit) {
+        // 8-bit JPEG mono: identity window (server pre-windowed)
+        ww = 256;
+        wc = 128;
+      } else {
+        // >8-bit J2K lossless / iSyntax wavelet: auto-calculate from pixel range
+        let min = Infinity;
+        let max = -Infinity;
+        for (let i = 0; i < totalPixels; i++) {
+          const v = pixelData[i] * slope + intercept;
+          if (v < min) min = v;
+          if (v > max) max = v;
+        }
+        ww = max - min || 1;
+        wc = (max + min) / 2;
       }
-      ww = max - min || 1;
-      wc = (max + min) / 2;
     }
 
     const lower = wc - ww / 2;

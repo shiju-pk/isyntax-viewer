@@ -16,6 +16,7 @@ pnpm-debug.log*
 !.env.example
 
 # Editor and OS files
+.vs/
 .vscode/
 .idea/
 .DS_Store

@@ -347,6 +347,7 @@ export class ISyntaxImageService {
       typedArray = result.bytesPerPixel === 2
         ? new Uint16Array(result.pixelData)
         : new Uint8Array(result.pixelData);
+
     } else {
       // iSyntax wavelet: pixel data is Int16 or Int32
       typedArray = result.bytesPerPixel === 4
@@ -544,16 +545,24 @@ export class ISyntaxImageService {
       // Client-side pipeline: storedValue → rescaleSlope/Intercept → VOI window → 0-255.
 
       // Determine window/level
-      // When the server delivers JPEG (8-bit) data from a higher bit-depth
-      // source (e.g. 12-bit), the DICOM WC/WW values are for the original
-      // stored pixel depth.  Scale them to the 8-bit range so they match the
-      // actual pixel values from the JPEG decoder.
       let ww = meta?.windowWidth;
       let wc = meta?.windowCenter;
 
-      const bitsStored = meta?.bitsStored ?? 8;
       const isJPEG = CodecConstants.instance.ImageFormat.isJPEGFormat(format);
-      if (isJPEG && bitsStored > 8 && ww != null && wc != null) {
+
+      // Detect actual decoded bit depth from the TypedArray:
+      //   Uint8Array / Int8Array  → 8-bit  (server pre-windowed JPEG)
+      //   Uint16Array / Int16Array → >8-bit (J2K lossless, original pixel values)
+      const decoded8bit = (pixelData instanceof Uint8Array || pixelData instanceof Int8Array);
+
+      // When the server delivers 8-bit JPEG from a higher bit-depth source
+      // (e.g. 12/16-bit), the DICOM WC/WW values are for the original stored
+      // pixel depth.  Scale them to the 8-bit range so they match the actual
+      // pixel values from the JPEG decoder.
+      // Do NOT scale for >8-bit decoded data (J2K lossless) — the pixel values
+      // are still in the original DICOM range and the DICOM WC/WW applies directly.
+      const bitsStored = meta?.bitsStored ?? 8;
+      if (isJPEG && decoded8bit && bitsStored > 8 && ww != null && wc != null) {
         const scale = (Math.pow(2, bitsStored) - 1) / 255;
         ww = ww / scale;
         wc = wc / scale;
@@ -573,11 +582,22 @@ export class ISyntaxImageService {
       this._cachedRawMax = rawMax;
 
       if (ww == null || wc == null) {
-        // Auto-calculate WW/WC from pixel data range (linear modality space)
-        const minMod = rawMin * slope + intercept;
-        const maxMod = rawMax * slope + intercept;
-        ww = Math.abs(maxMod - minMod) || 1;
-        wc = (maxMod + minMod) / 2;
+        if (isJPEG && decoded8bit) {
+          // 8-bit JPEG mono: the server already applied VOI windowing when
+          // encoding 16-bit (or higher) source data into 8-bit JPEG.  Pixel
+          // values are display-ready.  Use an identity window so pixel value N
+          // maps to display value N, avoiding the brightness shift that
+          // auto-stretching the actual pixel range would cause.
+          ww = 256;
+          wc = 128;
+        } else {
+          // >8-bit J2K lossless / iSyntax wavelet: auto-calculate WW/WC from
+          // pixel data range (linear modality space)
+          const minMod = rawMin * slope + intercept;
+          const maxMod = rawMax * slope + intercept;
+          ww = Math.abs(maxMod - minMod) || 1;
+          wc = (maxMod + minMod) / 2;
+        }
       }
 
       // Store the effective WC/WW for viewport initialisation
