@@ -9,6 +9,8 @@ export const RenderingEvents = {
   ELEMENT_RESIZE: 'RENDERING:ELEMENT_RESIZE',
   IMAGE_QUALITY_CHANGED: 'RENDERING:IMAGE_QUALITY_CHANGED',
   IMAGE_LOAD_PROGRESS: 'RENDERING:IMAGE_LOAD_PROGRESS',
+  VIEWPORT_RESET: 'RENDERING:VIEWPORT_RESET',
+  VIEWPORT_FIT: 'RENDERING:VIEWPORT_FIT',
 } as const;
 
 export type RenderingEventType =
@@ -73,6 +75,18 @@ export interface ImageLoadProgressEventDetail {
   percentComplete: number;
 }
 
+export interface ViewportResetEventDetail {
+  /** If provided, only reset the viewport with this ID; otherwise reset all. */
+  viewportId?: string;
+  defaultWindowCenter?: number;
+  defaultWindowWidth?: number;
+}
+
+export interface ViewportFitEventDetail {
+  /** If provided, only fit the viewport with this ID; otherwise fit all. */
+  viewportId?: string;
+}
+
 export type RenderingEventDetailMap = {
   [RenderingEvents.IMAGE_RENDERED]: ImageRenderedEventDetail;
   [RenderingEvents.VIEWPORT_ENABLED]: ViewportEnabledEventDetail;
@@ -82,4 +96,6 @@ export type RenderingEventDetailMap = {
   [RenderingEvents.ELEMENT_RESIZE]: ElementResizeEventDetail;
   [RenderingEvents.IMAGE_QUALITY_CHANGED]: ImageQualityChangedEventDetail;
   [RenderingEvents.IMAGE_LOAD_PROGRESS]: ImageLoadProgressEventDetail;
+  [RenderingEvents.VIEWPORT_RESET]: ViewportResetEventDetail;
+  [RenderingEvents.VIEWPORT_FIT]: ViewportFitEventDetail;
 };

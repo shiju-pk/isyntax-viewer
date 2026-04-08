@@ -6,3 +6,4 @@ export { ColorMapStage } from './stages/ColorMapStage';
 export { CompositorStage } from './stages/CompositorStage';
 export { OverlayCompositorStage } from './stages/OverlayCompositorStage';
 export { DisplayShutterStage } from './stages/DisplayShutterStage';
+export { DisplayAreaStage } from './stages/DisplayAreaStage';

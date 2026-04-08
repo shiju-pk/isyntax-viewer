@@ -1,0 +1,7 @@
+{
+  "targetHostname": "http://localhost:5000",
+  "apiBasePath": "/ResultsAuthority",
+  "adapterType": "isyntax",
+  "authEnabled": false,
+  "logLevel": "info"
+}

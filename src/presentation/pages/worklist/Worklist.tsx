@@ -5,6 +5,7 @@ import { getStudyInfoAndImageIds } from '../../../services/study/StudyService';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
 import studyConfigs from '../../../studies.json';
 import { getAddedStudies, addStudy as persistStudy, removeStudy as unpersistStudy } from '../../../services/storage/StudyStorageService';
+import { usePACS } from '../../context/PACSContext';
 
 interface StudyConfig {
   studyId: string;
@@ -44,6 +45,7 @@ export default function Worklist() {
   const [formStudyId, setFormStudyId] = useState('');
   const [formStackId, setFormStackId] = useState('');
   const navigate = useNavigate();
+  const { adapter, features } = usePACS();
 
   // Keep module cache in sync with every state update
   useEffect(() => { cachedRows = rows; }, [rows]);
@@ -51,37 +53,56 @@ export default function Worklist() {
   const fetchAndUpdateRow = useCallback(
     async (config: StudyConfig, index: number) => {
       try {
-        const { studyInfo, imageIds } = await getStudyInfoAndImageIds(
-          config.studyId,
-          config.stackId
-        );
+        // Use adapter when available to get study metadata
+        const study = await adapter.loadStudy(config.studyId, config.stackId);
+        const totalImages = study.series.reduce((n, s) => n + s.instances.length, 0);
         setRows((prev) => {
           const next = [...prev];
           next[index] = {
             ...next[index],
-            patientName: studyInfo.patientName || 'Unknown',
-            patientId: studyInfo.patientId || '',
-            modality: studyInfo.modality || '',
-            imageCount: imageIds.length,
+            patientName: study.patientName || 'Unknown',
+            patientId: study.patientId || '',
+            modality: study.modality || '',
+            imageCount: totalImages,
             loading: false,
           };
           return next;
         });
-      } catch (err) {
-        console.error(`Failed to fetch StudyDoc for ${config.studyId}:`, err);
-        setRows((prev) => {
-          const next = [...prev];
-          next[index] = {
-            ...next[index],
-            patientName: 'Error loading',
-            loading: false,
-            error: err instanceof Error ? err.message : 'Unknown error',
-          };
-          return next;
-        });
+      } catch {
+        // Fallback to direct StudyService if adapter fails
+        try {
+          const { studyInfo, imageIds } = await getStudyInfoAndImageIds(
+            config.studyId,
+            config.stackId
+          );
+          setRows((prev) => {
+            const next = [...prev];
+            next[index] = {
+              ...next[index],
+              patientName: studyInfo.patientName || 'Unknown',
+              patientId: studyInfo.patientId || '',
+              modality: studyInfo.modality || '',
+              imageCount: imageIds.length,
+              loading: false,
+            };
+            return next;
+          });
+        } catch (err) {
+          console.error(`Failed to fetch StudyDoc for ${config.studyId}:`, err);
+          setRows((prev) => {
+            const next = [...prev];
+            next[index] = {
+              ...next[index],
+              patientName: 'Error loading',
+              loading: false,
+              error: err instanceof Error ? err.message : 'Unknown error',
+            };
+            return next;
+          });
+        }
       }
     },
-    []
+    [adapter]
   );
 
   useEffect(() => {

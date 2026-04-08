@@ -16,6 +16,13 @@ interface OverlayPlaneInfo {
   hasData: boolean;
 }
 
+export interface GSPSLayerInfo {
+  name: string;
+  order: number;
+  visible: boolean;
+  description?: string;
+}
+
 interface OverlayToggleProps {
   /** Whether overlays are globally visible. */
   globalVisible: boolean;
@@ -25,6 +32,10 @@ interface OverlayToggleProps {
   planes: OverlayPlaneInfo[];
   /** Toggle a specific plane. */
   onPlaneToggle: (groupIndex: number) => void;
+  /** GSPS graphic layers (optional). */
+  gspsLayers?: GSPSLayerInfo[];
+  /** Toggle GSPS graphic layer visibility. */
+  onGSPSLayerToggle?: (layerName: string) => void;
 }
 
 export default function OverlayToggle({
@@ -32,11 +43,17 @@ export default function OverlayToggle({
   onGlobalToggle,
   planes,
   onPlaneToggle,
+  gspsLayers,
+  onGSPSLayerToggle,
 }: OverlayToggleProps) {
   const [expanded, setExpanded] = useState(false);
   const activePlanes = planes.filter((p) => p.hasData);
 
-  if (activePlanes.length === 0) return null;
+  const hasGSPSLayers = gspsLayers && gspsLayers.length > 0;
+
+  if (activePlanes.length === 0 && !hasGSPSLayers) return null;
+
+  const totalCount = activePlanes.length + (gspsLayers?.length ?? 0);
 
   return (
     <div className="bg-gray-800/80 backdrop-blur-sm rounded-md overflow-hidden">
@@ -59,7 +76,7 @@ export default function OverlayToggle({
           className="flex items-center gap-1 text-xs text-gray-300 hover:text-white transition-colors"
         >
           <Layers size={12} />
-          <span>Overlays ({activePlanes.length})</span>
+          <span>Overlays ({totalCount})</span>
           {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </button>
       </div>
@@ -87,6 +104,34 @@ export default function OverlayToggle({
               </span>
             </button>
           ))}
+
+          {/* GSPS graphic layers */}
+          {hasGSPSLayers && (
+            <>
+              {activePlanes.length > 0 && (
+                <div className="border-t border-gray-700/30 my-1" />
+              )}
+              <span className="text-[9px] uppercase tracking-wider text-gray-500 px-1">GSPS Layers</span>
+              {gspsLayers!.map((layer) => (
+                <button
+                  key={layer.name}
+                  onClick={() => onGSPSLayerToggle?.(layer.name)}
+                  className="flex items-center gap-2 w-full px-1 py-0.5 rounded text-xs hover:bg-gray-700/50 transition-colors"
+                >
+                  <span
+                    className="w-2.5 h-2.5 rounded-sm shrink-0"
+                    style={{ backgroundColor: layer.visible && globalVisible ? '#60A5FA' : '#555' }}
+                  />
+                  <span className={layer.visible && globalVisible ? 'text-gray-200' : 'text-gray-500'}>
+                    {layer.description || layer.name}
+                  </span>
+                  <span className="ml-auto text-gray-600 text-[10px]">
+                    {layer.visible ? 'ON' : 'OFF'}
+                  </span>
+                </button>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>

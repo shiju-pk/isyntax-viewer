@@ -13,6 +13,9 @@ import LayoutSwitcher from '../../components/Viewer/LayoutSwitcher';
 import type { LayoutMode } from '../../components/Viewer/LayoutSwitcher';
 import { useViewerHotkeys } from '../../hooks/useViewerHotkeys';
 import { useStudyLoader } from '../../hooks/useStudyLoader';
+import { eventBus } from '../../../rendering/events/EventBus';
+import { RenderingEvents } from '../../../rendering/events/RenderingEvents';
+import { annotationManager } from '../../../tools/stateManagement/AnnotationManager';
 
 export default function ViewerPage() {
   const location = useLocation();
@@ -43,6 +46,7 @@ export default function ViewerPage() {
   const [layout, setLayout] = useState<LayoutMode>('1x1');
 
   const [overlaysEnabled] = useState(true);
+  const [annotationsVisible, setAnnotationsVisible] = useState(true);
 
   // Derived values for metadata panel
   const currentInstanceUID = useMemo(() => {
@@ -68,7 +72,11 @@ export default function ViewerPage() {
     setMetaWidth(prev => Math.max(200, Math.min(500, prev + delta)));
   }, []);
   const handleReset = useCallback(() => {
-    // Reset is a no-op at page level now; each cell manages its own controller
+    eventBus.emit(RenderingEvents.VIEWPORT_RESET, {});
+  }, []);
+
+  const handleFitToWindow = useCallback(() => {
+    eventBus.emit(RenderingEvents.VIEWPORT_FIT, {});
   }, []);
 
   const handleLayoutChange = useCallback((newLayout: LayoutMode, _rows: number, _cols: number) => {
@@ -95,6 +103,24 @@ export default function ViewerPage() {
     // Download is a no-op at page level now; could be wired per-cell in the future
   }, []);
 
+  const handleDeleteAnnotation = useCallback(() => {
+    // Find highlighted annotation to delete
+    const imageId = seriesGroups[selectedSeriesIndex]?.imageIds[selectedImageIndex];
+    if (!imageId) return;
+    const annotations = annotationManager.getAllAnnotationsForImage(imageId);
+    const highlighted = annotations.find((a) => a.highlighted);
+    if (highlighted) {
+      annotationManager.removeAnnotation(highlighted.annotationUID);
+    }
+  }, [seriesGroups, selectedSeriesIndex, selectedImageIndex]);
+
+  const handleToggleAnnotations = useCallback(() => {
+    const imageId = seriesGroups[selectedSeriesIndex]?.imageIds[selectedImageIndex];
+    if (!imageId) return;
+    const newState = annotationManager.toggleVisibility(imageId);
+    setAnnotationsVisible(newState);
+  }, [seriesGroups, selectedSeriesIndex, selectedImageIndex]);
+
   // --- Keyboard shortcuts ---
   useViewerHotkeys({
     setMode,
@@ -107,6 +133,7 @@ export default function ViewerPage() {
     onRotateRight90: handleRotateRight90,
     onToggleMetadata: () => setShowMetadata(prev => !prev),
     onDownload: handleDownloadRaw,
+    onDeleteAnnotation: handleDeleteAnnotation,
   });
 
   if (!studyId || !stackId) {
@@ -128,7 +155,7 @@ export default function ViewerPage() {
           </div>
         )}
         <LayoutSwitcher activeLayout={layout} onLayoutChange={handleLayoutChange} />
-        <ToolPalette activeMode={mode} onModeChange={setMode} onReset={handleReset} onFlipHorizontal={handleFlipHorizontal} onFlipVertical={handleFlipVertical} onRotateRight90={handleRotateRight90} onDownload={handleDownloadRaw} canDownload={true} showMetadata={showMetadata} onToggleMetadata={() => setShowMetadata(prev => !prev)} />
+        <ToolPalette activeMode={mode} onModeChange={setMode} onReset={handleReset} onFitToWindow={handleFitToWindow} onFlipHorizontal={handleFlipHorizontal} onFlipVertical={handleFlipVertical} onRotateRight90={handleRotateRight90} onDownload={handleDownloadRaw} canDownload={true} showMetadata={showMetadata} onToggleMetadata={() => setShowMetadata(prev => !prev)} annotationsVisible={annotationsVisible} onToggleAnnotations={handleToggleAnnotations} />
       </TitleBar>
       <div className="flex flex-1 overflow-hidden">
         {studyLoading ? (

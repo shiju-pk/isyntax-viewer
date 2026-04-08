@@ -39,7 +39,14 @@
       "@screen-overlay/*": ["src/screen-overlay/*"],
       "@cine/*": ["src/cine/*"],
       "@viewport-sync/*": ["src/viewport-sync/*"],
-      "@save-state/*": ["src/save-state/*"]
+      "@save-state/*": ["src/save-state/*"],
+      "@domain/*": ["src/core/domain/*"],
+      "@adapters/*": ["src/adapters/*"],
+      "@capabilities/*": ["src/core/capabilities/*"],
+      "@config/*": ["src/core/config/*"],
+      "@errors/*": ["src/core/errors/*"],
+      "@logging/*": ["src/core/logging/*"],
+      "@hanging-protocol/*": ["src/hanging-protocol/*"]
     }
   },
   "include": ["src"]

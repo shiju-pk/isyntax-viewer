@@ -21,6 +21,7 @@ import { parseOverlayGroup } from '../../../overlay-engine/OverlayParser';
 import { eventBus } from '../../../rendering/events/EventBus';
 import { RenderingEvents } from '../../../rendering/events/RenderingEvents';
 import { Loader2, X, RefreshCw } from 'lucide-react';
+import OrientationMarkerOverlay from './OrientationMarkerOverlay';
 
 export interface ViewportCellAssignment {
   seriesIndex: number;
@@ -166,6 +167,25 @@ export default function ViewportCell({
     eventBus.on(RenderingEvents.VOI_MODIFIED, handler);
     return () => eventBus.off(RenderingEvents.VOI_MODIFIED, handler);
   }, []);
+
+  // Listen for reset/fit-to-window events from ToolPalette
+  useEffect(() => {
+    const handleReset = () => {
+      const ctrl = controllerRef.current;
+      if (!ctrl) return;
+      const meta = currentInstanceUID ? metadataMap.get(currentInstanceUID) : null;
+      ctrl.reset(meta?.windowCenter, meta?.windowWidth);
+    };
+    const handleFit = () => {
+      controllerRef.current?.fitToWindow();
+    };
+    eventBus.on(RenderingEvents.VIEWPORT_RESET, handleReset);
+    eventBus.on(RenderingEvents.VIEWPORT_FIT, handleFit);
+    return () => {
+      eventBus.off(RenderingEvents.VIEWPORT_RESET, handleReset);
+      eventBus.off(RenderingEvents.VIEWPORT_FIT, handleFit);
+    };
+  }, [currentInstanceUID, metadataMap]);
 
   // Keep ref in sync for stale-closure-safe reads
   currentImageRef.current = currentImage;

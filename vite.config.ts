@@ -38,6 +38,13 @@ export default defineConfig({
       '@cine': path.resolve(__dirname, 'src/cine'),
       '@viewport-sync': path.resolve(__dirname, 'src/viewport-sync'),
       '@save-state': path.resolve(__dirname, 'src/save-state'),
+      '@domain': path.resolve(__dirname, 'src/core/domain'),
+      '@adapters': path.resolve(__dirname, 'src/adapters'),
+      '@capabilities': path.resolve(__dirname, 'src/core/capabilities'),
+      '@config': path.resolve(__dirname, 'src/core/config'),
+      '@errors': path.resolve(__dirname, 'src/core/errors'),
+      '@logging': path.resolve(__dirname, 'src/core/logging'),
+      '@hanging-protocol': path.resolve(__dirname, 'src/hanging-protocol'),
     },
   },
   server: {

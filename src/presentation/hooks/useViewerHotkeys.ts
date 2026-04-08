@@ -12,6 +12,7 @@ export interface ViewerHotkeyHandlers {
   onRotateRight90?: () => void;
   onToggleMetadata?: () => void;
   onDownload?: () => void;
+  onDeleteAnnotation?: () => void;
 }
 
 /**
@@ -62,6 +63,11 @@ export function useViewerHotkeys(handlers: ViewerHotkeyHandlers) {
           e.preventDefault();
           handlers.setMode('angle');
           break;
+        case 's':
+        case 'S':
+          e.preventDefault();
+          handlers.setMode('select');
+          break;
 
         // --- Image navigation ---
         case 'ArrowUp':
@@ -100,6 +106,12 @@ export function useViewerHotkeys(handlers: ViewerHotkeyHandlers) {
         case 'I':
           e.preventDefault();
           handlers.onToggleMetadata?.();
+          break;
+
+        case 'Delete':
+        case 'Backspace':
+          e.preventDefault();
+          handlers.onDeleteAnnotation?.();
           break;
 
         default:

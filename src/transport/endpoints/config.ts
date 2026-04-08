@@ -1,9 +1,14 @@
 import { getEffectiveTargetHostname } from '../../services/config/PreferencesService';
-
-const API_PATH = '/ResultsAuthority';
+import { getConfig } from '../../core/config/ConfigProvider';
 
 function getApiBaseUrl(): string {
-  return `${getEffectiveTargetHostname()}${API_PATH}`;
+  try {
+    const cfg = getConfig();
+    return `${cfg.targetHostname}${cfg.apiBasePath}`;
+  } catch {
+    // Fallback if config not yet loaded (backward compat)
+    return `${getEffectiveTargetHostname()}/ResultsAuthority`;
+  }
 }
 
 export function getInitImageUrl(studyUID: string, instanceUID: string, sid: string): string {
@@ -24,4 +29,9 @@ export function getCoefficientsUrl(
 export function getStudyDocUrl(studyUID: string, sid: string): string {
   const base = getApiBaseUrl();
   return `${base}/Study/${studyUID}/iSyntaxStudy?sid=${sid}`;
+}
+
+export function getPresentationStateUrl(studyUID: string, psName: string): string {
+  const base = getApiBaseUrl();
+  return `${base}/Study/${studyUID}/PresentationState?N=${encodeURIComponent(psName)}`;
 }

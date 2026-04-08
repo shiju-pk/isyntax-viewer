@@ -13,3 +13,5 @@ export { ProbeTool } from './ProbeTool';
 export { CircleTool } from './CircleTool';
 export { FreehandTool } from './FreehandTool';
 export { TextAnnotationTool } from './TextAnnotationTool';
+export { SelectionTool } from './SelectionTool';
+export { CobbAngleTool } from './CobbAngleTool';

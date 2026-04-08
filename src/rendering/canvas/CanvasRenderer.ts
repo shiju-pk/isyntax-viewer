@@ -124,12 +124,18 @@ export function createCanvasRenderer(
     getMode() {
       return mode;
     },
-    reset() {
+    reset(defaultWC?: number, defaultWW?: number) {
       viewport.panX = 0;
       viewport.panY = 0;
       viewport.zoom = 1;
-      viewport.windowCenter = 128;
-      viewport.windowWidth = 256;
+      viewport.windowCenter = defaultWC ?? 128;
+      viewport.windowWidth = defaultWW ?? 256;
+      render();
+    },
+    fitToWindow() {
+      viewport.panX = 0;
+      viewport.panY = 0;
+      viewport.zoom = 1;
       render();
     },
     getViewportState() {

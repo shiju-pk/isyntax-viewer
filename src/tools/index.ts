@@ -38,4 +38,6 @@ export {
   CircleTool,
   FreehandTool,
   TextAnnotationTool,
+  SelectionTool,
+  CobbAngleTool,
 } from './concrete';

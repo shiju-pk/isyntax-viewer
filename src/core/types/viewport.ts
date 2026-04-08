@@ -12,6 +12,8 @@ export type InteractionMode =
   | 'circle'
   | 'freehand'
   | 'textAnnotation'
+  | 'select'
+  | 'cobbAngle'
   | 'brush'
   | 'eraser'
   | 'thresholdBrush'

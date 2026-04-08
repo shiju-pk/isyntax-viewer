@@ -126,6 +126,36 @@ class AnnotationManagerSingleton {
   }
 
   /**
+   * Toggle visibility for all annotations on a specific image.
+   * Returns the new visibility state.
+   */
+  toggleVisibility(imageId: string, visible?: boolean): boolean {
+    const key = imageId ?? '__global__';
+    const imageMap = this.store.get(key);
+    if (!imageMap) return true;
+
+    // Determine target state: if not explicitly given, toggle based on first annotation
+    let targetVisible = visible;
+    if (targetVisible === undefined) {
+      for (const list of imageMap.values()) {
+        if (list.length > 0) {
+          targetVisible = !list[0].isVisible;
+          break;
+        }
+      }
+    }
+    if (targetVisible === undefined) targetVisible = true;
+
+    for (const list of imageMap.values()) {
+      for (const ann of list) {
+        ann.isVisible = targetVisible;
+        eventBus.emit(AnnotationEvents.ANNOTATION_MODIFIED as any, { annotation: ann });
+      }
+    }
+    return targetVisible;
+  }
+
+  /**
    * Clear all annotations.
    */
   clear(): void {

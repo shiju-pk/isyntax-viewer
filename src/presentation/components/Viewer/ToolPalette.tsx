@@ -2,7 +2,8 @@ import {
   Move, ZoomIn, SunMedium, RotateCcw, RotateCw, Download, Info,
   Ruler, Triangle, Circle, Square, ArrowUpRight, Crosshair,
   Paintbrush, Eraser, SlidersHorizontal, Scissors, PaintBucket,
-  FlipHorizontal2, FlipVertical2, RefreshCw, Pen, Type,
+  FlipHorizontal2, FlipVertical2, RefreshCw, Pen, Type, Maximize2,
+  MousePointer2, Eye, EyeOff,
 } from 'lucide-react';
 import type { InteractionMode } from '../../../core/types';
 
@@ -10,6 +11,7 @@ interface ToolPaletteProps {
   activeMode: InteractionMode;
   onModeChange: (mode: InteractionMode) => void;
   onReset: () => void;
+  onFitToWindow?: () => void;
   onFlipHorizontal?: () => void;
   onFlipVertical?: () => void;
   onRotateRight90?: () => void;
@@ -17,6 +19,8 @@ interface ToolPaletteProps {
   canDownload?: boolean;
   showMetadata?: boolean;
   onToggleMetadata?: () => void;
+  annotationsVisible?: boolean;
+  onToggleAnnotations?: () => void;
 }
 
 interface ToolDef {
@@ -27,6 +31,7 @@ interface ToolDef {
 }
 
 const navigationTools: ToolDef[] = [
+  { mode: 'select', icon: MousePointer2, label: 'Select', shortcut: 'S' },
   { mode: 'pan', icon: Move, label: 'Pan', shortcut: 'P' },
   { mode: 'zoom', icon: ZoomIn, label: 'Zoom', shortcut: 'Z' },
   { mode: 'windowLevel', icon: SunMedium, label: 'W/L', shortcut: 'W' },
@@ -43,6 +48,7 @@ const annotationTools: ToolDef[] = [
   { mode: 'circle', icon: Circle, label: 'Circle ROI', shortcut: 'C' },
   { mode: 'freehand', icon: Pen, label: 'Freehand', shortcut: 'F' },
   { mode: 'textAnnotation', icon: Type, label: 'Text', shortcut: 'T' },
+  { mode: 'cobbAngle', icon: Triangle, label: 'Cobb Angle' },
 ];
 
 const segmentationTools: ToolDef[] = [
@@ -97,7 +103,7 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function ToolPalette({ activeMode, onModeChange, onReset, onFlipHorizontal, onFlipVertical, onRotateRight90, onDownload, canDownload, showMetadata, onToggleMetadata }: ToolPaletteProps) {
+export default function ToolPalette({ activeMode, onModeChange, onReset, onFitToWindow, onFlipHorizontal, onFlipVertical, onRotateRight90, onDownload, canDownload, showMetadata, onToggleMetadata, annotationsVisible, onToggleAnnotations }: ToolPaletteProps) {
   return (
     <div className="flex items-center gap-1 bg-gray-800/80 backdrop-blur-sm rounded-lg p-1.5 overflow-x-auto" role="toolbar" aria-label="Viewer tools">
       {/* Navigation tools */}
@@ -177,6 +183,16 @@ export default function ToolPalette({ activeMode, onModeChange, onReset, onFlipH
             <RotateCw size={18} />
           </button>
         )}
+        {onFitToWindow && (
+          <button
+            onClick={onFitToWindow}
+            title="Fit to Window"
+            aria-label="Fit image to window"
+            className="p-2.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+          >
+            <Maximize2 size={18} />
+          </button>
+        )}
         <button
           onClick={onReset}
           title="Reset (Esc)"
@@ -202,22 +218,39 @@ export default function ToolPalette({ activeMode, onModeChange, onReset, onFlipH
         )}
       </div>
 
-      {onToggleMetadata && (
+      {(onToggleMetadata || onToggleAnnotations) && (
         <>
           <div className="w-px h-7 bg-gray-600 mx-1 shrink-0" />
-          <button
-            onClick={onToggleMetadata}
-            title="DICOM Metadata (I)"
-            aria-label="Toggle DICOM metadata panel (I)"
-            aria-pressed={showMetadata}
-            className={`p-2.5 rounded-md transition-colors ${
-              showMetadata
-                ? 'bg-gray-600 text-white ring-1 ring-gray-500'
-                : 'text-gray-400 hover:text-white hover:bg-gray-700'
-            }`}
-          >
-            <Info size={18} />
-          </button>
+          {onToggleAnnotations && (
+            <button
+              onClick={onToggleAnnotations}
+              title="Toggle Annotations"
+              aria-label="Toggle annotation visibility"
+              aria-pressed={annotationsVisible}
+              className={`p-2.5 rounded-md transition-colors ${
+                annotationsVisible
+                  ? 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  : 'bg-gray-600 text-white ring-1 ring-gray-500'
+              }`}
+            >
+              {annotationsVisible ? <Eye size={18} /> : <EyeOff size={18} />}
+            </button>
+          )}
+          {onToggleMetadata && (
+            <button
+              onClick={onToggleMetadata}
+              title="DICOM Metadata (I)"
+              aria-label="Toggle DICOM metadata panel (I)"
+              aria-pressed={showMetadata}
+              className={`p-2.5 rounded-md transition-colors ${
+                showMetadata
+                  ? 'bg-gray-600 text-white ring-1 ring-gray-500'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-700'
+              }`}
+            >
+              <Info size={18} />
+            </button>
+          )}
         </>
       )}
     </div>

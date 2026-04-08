@@ -29,6 +29,8 @@ import {
   CircleTool,
   FreehandTool,
   TextAnnotationTool,
+  SelectionTool,
+  CobbAngleTool,
   annotationManager,
 } from '../../../tools';
 import type { AnnotationTool } from '../../../tools/base/AnnotationTool';
@@ -88,6 +90,8 @@ const _registered = (() => {
   registerToolClass(ThresholdBrushTool);
   registerToolClass(ScissorsTool);
   registerToolClass(FloodFillTool);
+  registerToolClass(SelectionTool);
+  registerToolClass(CobbAngleTool);
   return true;
 })();
 
@@ -105,6 +109,8 @@ const MODE_TO_TOOL_NAME: Record<InteractionMode, string> = {
   circle: 'Circle',
   freehand: 'Freehand',
   textAnnotation: 'TextAnnotation',
+  select: 'SelectionTool',
+  cobbAngle: 'CobbAngle',
   brush: 'Brush',
   eraser: 'Eraser',
   thresholdBrush: 'ThresholdBrush',
@@ -145,28 +151,33 @@ function addGSPSAnnotations(
   if (!entries || entries.length === 0) return;
 
   for (const entry of entries) {
-    const annotation: import('../../../tools/base/types').Annotation = {
-      annotationUID: generateAnnotationUID(),
-      metadata: {
-        toolName: entry.toolName,
-        viewportId,
-        imageId: currentImageId,
-      },
-      data: {
-        handles: {
-          points: entry.points.map(p => ({ x: p.x, y: p.y })),
-          activeHandleIndex: -1,
-          ...(entry.label ? { textBox: { worldPosition: entry.points[0], text: entry.label } } : {}),
+    if (!entry || !entry.toolName || !Array.isArray(entry.points)) continue;
+    try {
+      const annotation: import('../../../tools/base/types').Annotation = {
+        annotationUID: generateAnnotationUID(),
+        metadata: {
+          toolName: entry.toolName,
+          viewportId,
+          imageId: currentImageId,
         },
-        label: entry.label,
-      },
-      highlighted: false,
-      isLocked: true, // GSPS annotations are read-only
-      isVisible: true,
-      invalidated: false,
-    };
+        data: {
+          handles: {
+            points: entry.points.map(p => ({ x: p.x, y: p.y })),
+            activeHandleIndex: -1,
+            ...(entry.label && entry.points.length > 0 ? { textBox: { worldPosition: entry.points[0], text: entry.label } } : {}),
+          },
+          label: entry.label,
+        },
+        highlighted: false,
+        isLocked: true, // GSPS annotations are read-only
+        isVisible: true,
+        invalidated: false,
+      };
 
-    annotationManager.addAnnotation(annotation);
+      annotationManager.addAnnotation(annotation);
+    } catch (err) {
+      console.warn('[MainImage] Failed to add GSPS annotation:', err, entry);
+    }
   }
 }
 
@@ -292,7 +303,21 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady,
           }
         },
         getMode: () => modeRef.current,
-        reset: () => {
+        reset: (defaultWC?: number, defaultWW?: number) => {
+          viewport.resetCamera();
+          if (defaultWC !== undefined || defaultWW !== undefined) {
+            viewport.setProperties({
+              windowCenter: defaultWC,
+              windowWidth: defaultWW,
+            });
+          }
+          eventBus.emit(RenderingEvents.CAMERA_MODIFIED, {
+            viewportId: viewport.id,
+            camera: viewport.getCamera().getState(),
+          });
+          engine.renderViewport(VIEWPORT_ID);
+        },
+        fitToWindow: () => {
           viewport.resetCamera();
           eventBus.emit(RenderingEvents.CAMERA_MODIFIED, {
             viewportId: viewport.id,
@@ -405,36 +430,40 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady,
 
     gspsAppliedRef.current = true;
 
-    // 1. Presentation LUT Shape (INVERSE → invert)
-    if (gspsResult.presentationLutShape === 'INVERSE') {
-      viewport.setProperties({ invert: true });
-    }
-
-    // 2. Spatial transform (rotation, flip)
-    const spatial = gspsResult.spatialTransform;
-    if (spatial) {
-      const camera = viewport.getCamera();
-      if (spatial.imageHorizontalFlip) {
-        camera.flipHorizontal();
+    try {
+      // 1. Presentation LUT Shape (INVERSE → invert)
+      if (gspsResult.presentationLutShape === 'INVERSE') {
+        viewport.setProperties({ invert: true });
       }
-      if (spatial.imageRotation) {
-        camera.rotate(spatial.imageRotation);
+
+      // 2. Spatial transform (rotation, flip)
+      const spatial = gspsResult.spatialTransform;
+      if (spatial) {
+        const camera = viewport.getCamera();
+        if (spatial.imageHorizontalFlip) {
+          camera.flipHorizontal();
+        }
+        if (spatial.imageRotation) {
+          camera.rotate(spatial.imageRotation);
+        }
       }
-    }
 
-    // 3. Display shutters
-    if (gspsResult.shutters.length > 0 && shutterStageRef.current) {
-      shutterStageRef.current.setShutters(gspsResult.shutters);
-    }
+      // 3. Display shutters
+      if (gspsResult.shutters && gspsResult.shutters.length > 0 && shutterStageRef.current) {
+        shutterStageRef.current.setShutters(gspsResult.shutters);
+      }
 
-    // 4. Graphic/Text annotations — feed into annotationManager
-    const currentImgId = imageIdRef.current;
-    if (currentImgId && gspsResult.annotationsByImage.size > 0) {
-      addGSPSAnnotations(gspsResult.annotationsByImage, currentImgId, VIEWPORT_ID);
-    }
+      // 4. Graphic/Text annotations — feed into annotationManager
+      const currentImgId = imageIdRef.current;
+      if (currentImgId && gspsResult.annotationsByImage && gspsResult.annotationsByImage.size > 0) {
+        addGSPSAnnotations(gspsResult.annotationsByImage, currentImgId, VIEWPORT_ID);
+      }
 
-    // Trigger re-render to apply all changes
-    engineRef.current.renderViewport(VIEWPORT_ID);
+      // Trigger re-render to apply all changes
+      engineRef.current.renderViewport(VIEWPORT_ID);
+    } catch (err) {
+      console.error('[MainImage] Failed to apply GSPS result:', err);
+    }
   }, [gspsResult]);
 
   // Reset GSPS applied flag when switching images

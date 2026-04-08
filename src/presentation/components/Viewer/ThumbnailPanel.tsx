@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import type { SeriesGroup } from '../../../core/types';
 
 interface ThumbnailPanelProps {
@@ -131,22 +131,60 @@ export default function ThumbnailPanel({
   onSelect,
   width,
 }: ThumbnailPanelProps) {
+  const [collapsedSeries, setCollapsedSeries] = useState<Set<number>>(new Set());
+
+  const toggleCollapse = (sIdx: number) => {
+    setCollapsedSeries((prev) => {
+      const next = new Set(prev);
+      if (next.has(sIdx)) next.delete(sIdx);
+      else next.add(sIdx);
+      return next;
+    });
+  };
+
   return (
     <div
-      className="flex flex-wrap content-start gap-2 p-2 overflow-y-auto min-h-0 bg-gray-900 shrink-0"
+      className="flex flex-col gap-1 p-2 overflow-y-auto min-h-0 bg-gray-900 shrink-0"
       style={{ width }}
     >
-      {seriesGroups.map((group, sIdx) => (
-        <SeriesCard
-          key={group.seriesUID}
-          group={group}
-          seriesIndex={sIdx}
-          isSelectedSeries={sIdx === selectedSeriesIndex}
-          selectedImageIndex={selectedImageIndex}
-          thumbnails={thumbnails}
-          onSelect={onSelect}
-        />
-      ))}
+      {seriesGroups.map((group, sIdx) => {
+        const isCollapsed = collapsedSeries.has(sIdx);
+        const seriesLabel = group.seriesUID === '_all'
+          ? 'All Images'
+          : `Series ${sIdx + 1}`;
+
+        return (
+          <div key={group.seriesUID} className="flex flex-col">
+            {/* Series header */}
+            <button
+              onClick={() => toggleCollapse(sIdx)}
+              className="flex items-center gap-1.5 px-1.5 py-1 text-left hover:bg-gray-800/50 rounded transition-colors"
+            >
+              {isCollapsed ? <ChevronRight size={12} className="text-gray-500" /> : <ChevronDown size={12} className="text-gray-500" />}
+              <span className="text-[11px] font-medium text-gray-400 truncate flex-1">
+                {seriesLabel}
+              </span>
+              <span className="text-[10px] text-gray-600 tabular-nums">
+                {group.imageIds.length} img{group.imageIds.length !== 1 ? 's' : ''}
+              </span>
+            </button>
+
+            {/* Series thumbnail card */}
+            {!isCollapsed && (
+              <div className="pl-1 pt-1">
+                <SeriesCard
+                  group={group}
+                  seriesIndex={sIdx}
+                  isSelectedSeries={sIdx === selectedSeriesIndex}
+                  selectedImageIndex={selectedImageIndex}
+                  thumbnails={thumbnails}
+                  onSelect={onSelect}
+                />
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

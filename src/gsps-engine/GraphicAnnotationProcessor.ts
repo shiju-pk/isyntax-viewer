@@ -270,7 +270,7 @@ function mapTextObject(tObj: GSPSTextObject): GSPSAnnotationEntry | null {
   if (points.length === 0) return null;
 
   // Determine tool name based on anchor point visibility
-  const toolName = tObj.anchorPointVisibility ? 'ArrowAnnotate' : 'ArrowAnnotate';
+  const toolName = tObj.anchorPointVisibility ? 'ArrowAnnotate' : 'TextAnnotation';
 
   return {
     toolName,

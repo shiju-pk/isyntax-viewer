@@ -15,7 +15,8 @@ export interface ICanvasController {
   setImageData: (imageData: ImageData) => void;
   setMode: (mode: InteractionMode) => void;
   getMode: () => InteractionMode;
-  reset: () => void;
+  reset: (defaultWC?: number, defaultWW?: number) => void;
+  fitToWindow: () => void;
   getViewportState: () => ViewportState;
   flipHorizontal: () => void;
   flipVertical: () => void;
