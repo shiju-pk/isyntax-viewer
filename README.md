@@ -80,14 +80,40 @@ The app will be available at `http://localhost:5173`.
 
 Point your browser to `http://localhost:5173`. Built-in studies from `src/studies.json` load automatically. Use **Add Study** to add additional studies by Study ID and Stack ID.
 
-### 4. Quick Setup for Real PACS Backend
+### 4. Quick Setup for PACS Backend
 
-To connect to a live PACS system:
+#### Option A: IntelliSpace PACS Enterprise (ISPACS)
+
+To connect to a full ISPACS system:
+
+1. **Edit configuration:** Update `public/config.json`:
+   ```json
+   {
+     "targetHostname": "http://your-ispacs-server",
+     "adapterType": "ispacs",
+     "authEnabled": true
+   }
+   ```
+
+2. **Ensure ISPACS services:** Your server must have:
+   - Discovery Service at `/InfrastructureServices/DiscoveryService/`
+   - Authentication Service with configured auth sources
+   - Clinical Services for worklist (future)
+   - Results Authority for images
+
+3. **Configure CORS:** Add CORS headers or use Tauri desktop mode
+
+4. **Restart and login:** The app will discover services and show auth source dropdown
+
+#### Option B: ResultsAuthority REST API (iSyntax)
+
+To connect to a simpler REST-based PACS:
 
 1. **Edit configuration:** Update `public/config.json`:
    ```json
    {
      "targetHostname": "http://your-pacs-server:5000",
+     "adapterType": "isyntax",
      "authEnabled": true
    }
    ```
@@ -109,11 +135,12 @@ To connect to a live PACS system:
 
 ## Configuration
 
-### Real PACS Backend Setup
+### Backend Adapter Types
 
-The app supports two modes:
-- **Mock Mode** (default) — Uses hardcoded test data for development
-- **Real PACS Mode** — Connects to a live Philips ResultsAuthority REST API
+The app supports three backend adapter types:
+- **Mock Mode** (`"mock"`) — Uses hardcoded test data for development
+- **iSyntax Mode** (`"isyntax"`) — Connects to a Philips ResultsAuthority REST API
+- **ISPACS Mode** (`"ispacs"`) — Connects to a full IntelliSpace PACS Enterprise system
 
 #### Enabling Real PACS Backend
 
@@ -144,6 +171,44 @@ Set these environment variables before building:
 VITE_TARGET_HOSTNAME=http://your-pacs-server:5000
 VITE_API_BASE_PATH=/ResultsAuthority
 ```
+
+#### ISPACS Enterprise Backend Setup
+
+For connecting to a full **IntelliSpace PACS Enterprise** system, use the `"ispacs"` adapter:
+
+**Configuration File:**
+```json
+{
+  "targetHostname": "http://your-ispacs-server",
+  "adapterType": "ispacs",
+  "serviceEndpoints": {
+    "infrastructure": "/InfrastructureServices",
+    "clinical": "/ClinicalServices", 
+    "resultsAuthority": "/ResultsAuthority"
+  },
+  "authEnabled": true,
+  "logLevel": "info"
+}
+```
+
+**Key differences from iSyntax mode:**
+- **Service Discovery:** Automatically discovers available services via `/InfrastructureServices/DiscoveryService/DiscoveryService.ashx`
+- **Authentication Sources:** Dynamically loads authentication sources (Windows, LDAP, etc.) and shows dropdown on login page
+- **Full WCF Integration:** Uses XML-RPC style messaging with HMAC request signing
+- **3-Service Architecture:** Separates Infrastructure, Clinical, and Results Authority services
+
+**ISPACS Backend Requirements:**
+- IntelliSpace PACS Enterprise 4.4 or later
+- Discovery Service enabled at `/InfrastructureServices/DiscoveryService/`
+- Authentication Service with multiple auth sources configured
+- CORS headers configured for browser access (or use Tauri desktop mode)
+
+**Login Flow:**
+1. App calls Discovery Service to get available service endpoints
+2. Retrieves authentication sources (Windows, LDAP, local accounts, etc.)
+3. User selects auth source from dropdown and enters credentials
+4. Login response includes HMAC secret for secure session management
+5. All subsequent requests are HMAC-signed for security
 
 ### Authentication Setup
 
@@ -423,15 +488,57 @@ For full architectural detail, see [DESIGN.md](DESIGN.md).
 
 ## API Endpoints
 
+### iSyntax Mode Endpoints
+
 All endpoints are served by the Philips ResultsAuthority REST service.
 
-### Authentication Endpoints
+#### Authentication Endpoints
 
 | Purpose | Method | Path | Auth Required |
 |---------|--------|------|---------------|
 | User login | `POST` | `/ResultsAuthority/auth/login` | No |
 | User logout | `POST` | `/ResultsAuthority/auth/logout` | Yes |
 | Session validation | `GET` | `/ResultsAuthority/auth/validate` | Yes |
+
+### ISPACS Mode Endpoints
+
+ISPACS uses WCF XML-RPC style messaging across three service roots.
+
+#### Infrastructure Services (`/InfrastructureServices`)
+
+| Purpose | Method | Path | Auth Required |
+|---------|--------|------|---------------|
+| Service discovery | `POST` | `/InfrastructureServices/DiscoveryService/DiscoveryService.ashx` | No |
+| Get auth sources | `POST` | `/InfrastructureServices/AuthenticationService.ashx` | No |
+| User login | `POST` | `/InfrastructureServices/AuthenticationService.ashx` | No |
+| User logout | `POST` | `/InfrastructureServices/AuthenticationService.ashx` | Yes |
+| Keep alive | `POST` | `/InfrastructureServices/AuthenticationService.ashx` | Yes |
+
+**XML Message Format:**
+```xml
+<Message>
+  <GetServices>
+    <getServicesRequest xmlns="uri://medical.philips.com/2006/3/15/iSite/Services/Discovery/Messages">
+      <ServiceClient>
+        <Version>4.4</Version>
+        <Application>iSiteEnterprise</Application>
+        <Culture></Culture>
+      </ServiceClient>
+    </getServicesRequest>
+  </GetServices>
+</Message>
+```
+
+#### Clinical Services (`/ClinicalServices`)
+
+| Purpose | Method | Path | Auth Required |
+|---------|--------|------|---------------|
+| Worklist query | `POST` | `/ClinicalServices/WorklistService.ashx` | Yes |
+| Patient search | `POST` | `/ClinicalServices/WorklistService.ashx` | Yes |
+
+#### Results Authority (`/ResultsAuthority`)
+
+Same image endpoints as iSyntax mode (StudyDoc, InitImage, GetCoefficients).
 
 ### Worklist Endpoints
 
@@ -465,6 +572,8 @@ All authenticated endpoints require `Authorization: Bearer {sessionToken}` heade
 
 ### Authentication Issues
 
+#### iSyntax Mode Authentication
+
 **Problem:** Login fails with "Authentication failed"
 - Check backend `/auth/login` endpoint is implemented
 - Verify username/password are correct
@@ -475,6 +584,26 @@ All authenticated endpoints require `Authorization: Bearer {sessionToken}` heade
 - Verify backend returns valid `sessionToken` in login response
 - Check `sessionTimeoutMs` configuration (default: 30 minutes)
 - Ensure backend `/auth/validate` endpoint works correctly
+
+#### ISPACS Mode Authentication
+
+**Problem:** "Server unavailable" during discovery
+- Verify ISPACS server is running and accessible
+- Check `/InfrastructureServices/DiscoveryService/DiscoveryService.ashx` endpoint
+- Ensure CORS headers are configured for browser access
+- Try both newer and older discovery paths (automatic fallback)
+
+**Problem:** No authentication sources appear
+- Verify Discovery Service found the AuthenticationService
+- Check that auth sources are configured as visible in ISPACS
+- Inspect browser Network tab for GetAuthenticationSources response
+- Ensure at least one auth source has `IsVisible=true`
+
+**Problem:** Login fails with specific auth source
+- Verify the selected auth source is properly configured in ISPACS
+- Check username format matches auth source requirements (e.g., domain\username)
+- Test with different auth sources if multiple are available
+- Check ISPACS logs for authentication errors
 
 ### Worklist Issues
 

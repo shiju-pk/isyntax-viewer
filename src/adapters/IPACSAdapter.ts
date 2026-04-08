@@ -9,6 +9,8 @@ import type { DicomImageMetadata } from '../core/types/dicom';
 export interface AuthCredentials {
   username: string;
   password: string;
+  authSource?: string;
+  culture?: string;
 }
 
 export interface AuthResult {

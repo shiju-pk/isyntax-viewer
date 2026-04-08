@@ -45,9 +45,24 @@ export default defineConfig({
       '@errors': path.resolve(__dirname, 'src/core/errors'),
       '@logging': path.resolve(__dirname, 'src/core/logging'),
       '@hanging-protocol': path.resolve(__dirname, 'src/hanging-protocol'),
+      '@security': path.resolve(__dirname, 'src/core/security'),
     },
   },
   server: {
     port: 5173,
+    proxy: {
+      '/InfrastructureServices': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+      '/ClinicalServices': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+      '/ResultsAuthority': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+    },
   },
 })

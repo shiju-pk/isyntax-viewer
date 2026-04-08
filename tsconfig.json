@@ -46,7 +46,8 @@
       "@config/*": ["src/core/config/*"],
       "@errors/*": ["src/core/errors/*"],
       "@logging/*": ["src/core/logging/*"],
-      "@hanging-protocol/*": ["src/hanging-protocol/*"]
+      "@hanging-protocol/*": ["src/hanging-protocol/*"],
+      "@security/*": ["src/core/security/*"]
     }
   },
   "include": ["src"]

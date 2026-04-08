@@ -20,10 +20,11 @@ export async function loadConfig(): Promise<AppConfig> {
     const resp = await fetch('/config.json');
     if (resp.ok) {
       const json = await resp.json();
+      console.log('[Config] config.json:', JSON.stringify(json));
       merged = mergeConfig(merged, json);
     }
   } catch {
-    // config.json is optional — proceed with defaults
+    console.warn('[Config] config.json not found, using defaults');
   }
 
   // Layer 2: Build-time env (Vite defines)
@@ -34,17 +35,25 @@ export async function loadConfig(): Promise<AppConfig> {
     if (env.VITE_LOG_LEVEL) merged.logLevel = env.VITE_LOG_LEVEL;
   }
 
-  // Layer 3: localStorage overrides (user-time)
+  // Layer 3: localStorage overrides (user-time, only hostname/preferences — NOT adapterType)
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      merged = mergeConfig(merged, parsed);
+      console.log('[Config] localStorage overrides:', stored);
+      // Only allow safe user-overridable fields from localStorage
+      // adapterType, authEnabled, serviceEndpoints must come from config.json
+      const safeOverrides: Partial<AppConfig> = {};
+      if (parsed.targetHostname) safeOverrides.targetHostname = parsed.targetHostname;
+      if (parsed.apiBasePath) safeOverrides.apiBasePath = parsed.apiBasePath;
+      if (parsed.logLevel) safeOverrides.logLevel = parsed.logLevel;
+      merged = mergeConfig(merged, safeOverrides);
     }
   } catch {
     // Ignore corrupt localStorage
   }
 
+  console.log('[Config] Resolved:', `adapterType=${merged.adapterType}, authEnabled=${merged.authEnabled}, infrastructure=${merged.serviceEndpoints.infrastructure}`);
   resolvedConfig = merged;
   return merged;
 }
@@ -91,7 +100,12 @@ function mergeConfig(base: AppConfig, overrides: Partial<AppConfig>): AppConfig 
   for (const key of Object.keys(overrides) as (keyof AppConfig)[]) {
     const value = overrides[key];
     if (value !== undefined && value !== null) {
-      (result as any)[key] = value;
+      // Deep-merge serviceEndpoints
+      if (key === 'serviceEndpoints' && typeof value === 'object') {
+        result.serviceEndpoints = { ...result.serviceEndpoints, ...(value as any) };
+      } else {
+        (result as any)[key] = value;
+      }
     }
   }
   return result;
