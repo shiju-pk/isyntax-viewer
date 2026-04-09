@@ -33,8 +33,11 @@ export class HmacSigner {
 
     if (serverTimestamp) {
       const serverTime = new Date(serverTimestamp).getTime();
+      const clientTime = Date.now();
       const latency = loginLatencyMs ?? 0;
-      this._serverTimeOffsetMs = serverTime - (Date.now() - latency);
+      // Match legacy: offset_seconds = (serverTime - clientTime) / 1000 - delay / 1000
+      // Convert to ms:  offset_ms    = (serverTime - clientTime) - delay
+      this._serverTimeOffsetMs = (serverTime - clientTime) - latency;
     }
   }
 
@@ -107,7 +110,7 @@ export class HmacSigner {
     return serverNow.toISOString();
   }
 
-  /** Compute HMAC-SHA256 and return hex-encoded digest. */
+  /** Compute HMAC-SHA256 and return Base64-encoded digest (matches legacy dojox SHA256._hmac with outputType 0 = Base64). */
   private async _hmacSha256(message: string, key: string): Promise<string | null> {
     try {
       const encoder = new TextEncoder();
@@ -123,10 +126,8 @@ export class HmacSigner {
       );
 
       const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageData);
-      // Legacy ISPACS uses hex encoding (not base64)
-      return Array.from(new Uint8Array(signature))
-        .map((b) => b.toString(16).padStart(2, '0'))
-        .join('');
+      // Legacy ISPACS uses Base64 encoding (dojox outputTypes.Base64 = 0)
+      return btoa(String.fromCharCode(...new Uint8Array(signature)));
     } catch {
       return null;
     }

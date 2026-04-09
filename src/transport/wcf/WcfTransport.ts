@@ -32,11 +32,15 @@ export class WcfTransport {
       'Cache-Control': 'no-cache',
     };
 
-    // Add Authorization header (HMAC-based) if enabled
+    // Add Authorization + Content-Signature headers (HMAC-based) if enabled
     if (this._hmacSigner.isEnabled) {
       const authHeader = await this._hmacSigner.buildAuthorizationHeader();
       if (authHeader) {
         headers['Authorization'] = authHeader;
+      }
+      const contentSig = await this._hmacSigner.signContent(xmlBody);
+      if (contentSig) {
+        headers['X-ISPACS-Content-Signature'] = contentSig;
       }
     }
 
@@ -89,6 +93,10 @@ export class WcfTransport {
       const authHeader = await this._hmacSigner.buildAuthorizationHeader();
       if (authHeader) {
         headers['Authorization'] = authHeader;
+      }
+      const contentSig = await this._hmacSigner.signContent(xmlBody);
+      if (contentSig) {
+        headers['X-ISPACS-Content-Signature'] = contentSig;
       }
     }
 
