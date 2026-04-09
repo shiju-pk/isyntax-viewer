@@ -68,35 +68,89 @@ export class ISPACSAuthService implements IAuthService {
   }
 
   private _parseDiscoveryResponse(xml: string): void {
+    // eslint-disable-next-line no-console
+    console.log('[ISPACSAuthService] Discovery raw XML >>>', xml);
+    Logger.info(LOG_CAT, `Discovery raw response:\n${xml}`);
     const doc = WcfXmlParser.parse(xml);
-    const serviceElements = WcfXmlParser.findAll(doc, 'Service');
+    // Try common tag names used by different PACS versions
+    let serviceElements = WcfXmlParser.findAll(doc, 'Service');
+    if (serviceElements.length === 0) {
+      serviceElements = WcfXmlParser.findAll(doc, 'ServiceInfo');
+    }
+    if (serviceElements.length === 0) {
+      serviceElements = WcfXmlParser.findAll(doc, 'ServiceEntry');
+    }
+    if (serviceElements.length === 0) {
+      serviceElements = WcfXmlParser.findAll(doc, 'ServiceDescription');
+    }
+    // Last-resort: scan every element in the document
+    if (serviceElements.length === 0) {
+      const allTags = new Set<string>();
+      doc.querySelectorAll('*').forEach((el) => allTags.add(el.localName));
+      // eslint-disable-next-line no-console
+      console.warn('[ISPACSAuthService] No service elements found. All XML tags:', Array.from(allTags).join(', '));
+    }
+    Logger.info(LOG_CAT, `Found ${serviceElements.length} service elements in discovery response`);
     this._serviceMap.clear();
 
     for (const svcEl of serviceElements) {
-      const name = WcfXmlParser.getText(svcEl, 'Name');
-      const absolutePath = WcfXmlParser.getText(svcEl, 'AbsolutePath');
+      // Support both child-element form <Name>...</Name> and attribute form Name="..."
+      const name =
+        WcfXmlParser.getText(svcEl, 'Name') ??
+        svcEl.getAttribute('Name') ??
+        svcEl.getAttribute('name');
+      const absolutePath =
+        WcfXmlParser.getText(svcEl, 'AbsolutePath') ??
+        svcEl.getAttribute('AbsolutePath') ??
+        svcEl.getAttribute('absolutePath') ??
+        svcEl.getAttribute('Url') ??
+        svcEl.getAttribute('url') ??
+        WcfXmlParser.getText(svcEl, 'Url');
+
+      Logger.info(LOG_CAT, `Service element: name=${JSON.stringify(name)}, absolutePath=${JSON.stringify(absolutePath)}, xml=${svcEl.outerHTML?.substring(0, 300)}`);
       if (!name || !absolutePath) continue;
 
       const entry: ServiceMapEntry = {
         name,
         absolutePath,
-        scheme: WcfXmlParser.getText(svcEl, 'Scheme') ?? undefined,
-        type: WcfXmlParser.getText(svcEl, 'Type') ?? undefined,
-        isAnonymous: WcfXmlParser.getText(svcEl, 'IsAnonymous') === 'true',
+        scheme: WcfXmlParser.getText(svcEl, 'Scheme') ?? svcEl.getAttribute('Scheme') ?? undefined,
+        type: WcfXmlParser.getText(svcEl, 'Type') ?? svcEl.getAttribute('Type') ?? undefined,
+        isAnonymous:
+          (WcfXmlParser.getText(svcEl, 'IsAnonymous') ?? svcEl.getAttribute('IsAnonymous')) === 'true',
       };
       this._serviceMap.set(name, entry);
     }
 
     Logger.info(LOG_CAT, `Discovered ${this._serviceMap.size} services: [${Array.from(this._serviceMap.keys()).join(', ')}]`);
 
-    // Resolve auth service path
-    const authEntry = this._serviceMap.get('AuthenticationService');
+    // Resolve auth service path — try exact name first, then case-insensitive partial match
+    const authEntry =
+      this._serviceMap.get('AuthenticationService') ??
+      this._serviceMap.get('Authentication') ??
+      Array.from(this._serviceMap.values()).find((e) =>
+        e.name.toLowerCase().includes('auth'),
+      );
+
     if (authEntry) {
-      this._authServicePath = authEntry.absolutePath;
-      Logger.info(LOG_CAT, `Auth service path: ${this._authServicePath}`);
+      // absolutePath from discovery is relative to the server root (e.g. /InfrastructureServices/AuthenticationService.ashx).
+      // WcfTransport.post() prepends _infrastructureBase, so we strip that prefix to avoid double-prefixing.
+      this._authServicePath = this._stripBase(authEntry.absolutePath);
+      Logger.info(LOG_CAT, `Auth service path: ${this._authServicePath} (from service '${authEntry.name}')`);
     } else {
-      Logger.warn(LOG_CAT, 'AuthenticationService not found in discovery response');
+      // Fallback: path relative to _infrastructureBase
+      this._authServicePath = '/AuthenticationService/AuthenticationService.ashx';
+      Logger.warn(LOG_CAT, `AuthenticationService not found in discovery response — falling back to ${this._authServicePath}`);
     }
+  }
+
+  /** Strip _infrastructureBase prefix from an absolute server path, returning a relative path. */
+  private _stripBase(absolutePath: string): string {
+    const base = this._infrastructureBase.replace(/\/$/, '');
+    if (absolutePath.startsWith(base + '/')) {
+      return absolutePath.slice(base.length);
+    }
+    // Already relative, or uses a different base — return as-is
+    return absolutePath;
   }
 
   // ─── Auth Sources ─────────────────────────────────────────────
@@ -178,21 +232,50 @@ export class ISPACSAuthService implements IAuthService {
   }
 
   private _parseLoginResponse(xml: string, username: string, latencyMs: number): AuthResult {
+    // eslint-disable-next-line no-console
+    console.log('[ISPACSAuthService] Login raw XML >>>', xml);
     const doc = WcfXmlParser.parse(xml);
 
-    // Find the LoginResponse element
-    const loginRespEl = WcfXmlParser.findFirst(doc, 'LoginResponse');
+    // Find the LoginResponse element (also try 'loginResponse' lowercase)
+    const loginRespEl =
+      WcfXmlParser.findFirst(doc, 'LoginResponse') ??
+      WcfXmlParser.findFirst(doc, 'loginResponse') ??
+      WcfXmlParser.findFirst(doc, 'AuthenticateResponse') ??
+      WcfXmlParser.findFirst(doc, 'LoginResult');
     if (!loginRespEl) {
+      // eslint-disable-next-line no-console
+      console.warn('[ISPACSAuthService] LoginResponse element not found in:', xml);
       return { success: false, errorMessage: 'Invalid login response' };
     }
 
-    const result = WcfXmlParser.getText(loginRespEl, 'Result') ?? 'Failure';
+    const result = WcfXmlParser.getText(loginRespEl, 'Result') ??
+      WcfXmlParser.getText(loginRespEl, 'Status') ??
+      WcfXmlParser.getText(loginRespEl, 'LoginResult') ??
+      'Failure';
+    // eslint-disable-next-line no-console
+    console.log('[ISPACSAuthService] Login result code:', JSON.stringify(result));
 
-    if (result === 'Failure') {
-      return { success: false, errorMessage: 'Authentication failed' };
+    const resultLower = result.toLowerCase();
+
+    // Check for password-expired before extracting context
+    const isPasswordExpired = resultLower === 'passwordexpired' || resultLower === 'password_expired';
+
+    // Accept any result that looks like success
+    const isSuccess =
+      isPasswordExpired ||
+      resultLower === 'success' ||
+      resultLower === 'authorized' ||
+      resultLower === 'ok' ||
+      resultLower === 'loggedin' ||
+      resultLower === 'logged_in' ||
+      resultLower === '0';
+
+    if (!isSuccess) {
+      Logger.warn(LOG_CAT, `Login failed with result code: ${JSON.stringify(result)}`);
+      return { success: false, errorMessage: `Authentication failed (result: ${result})` };
     }
 
-    // Extract security context
+    // Only extract and store security context on actual success
     const ticket = WcfXmlParser.getText(loginRespEl, 'Ticket') ?? '';
     const hmacSecretKey = WcfXmlParser.getText(loginRespEl, 'HMACSecretKey') ?? undefined;
     const serverTimestamp = WcfXmlParser.getText(loginRespEl, 'ServerTimestamp') ?? undefined;
@@ -223,14 +306,8 @@ export class ISPACSAuthService implements IAuthService {
 
     Logger.info(LOG_CAT, `Login success: ${userDisplayName ?? userPrincipalName} (result=${result})`);
 
-    // Check for error-ish result codes that are not 'Success'
-    const isSuccess = result === 'Success' || result === 'PasswordExpired';
-    if (result === 'PasswordExpired') {
+    if (isPasswordExpired) {
       return { success: true, sessionToken: ticket, errorMessage: 'Password expired — please change your password' };
-    }
-
-    if (!isSuccess) {
-      return { success: false, errorMessage: `Login result: ${result}` };
     }
 
     return { success: true, sessionToken: ticket };

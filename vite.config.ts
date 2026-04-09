@@ -52,16 +52,19 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/InfrastructureServices': {
-        target: 'http://localhost:5000',
+        target: 'https://localhost',
         changeOrigin: true,
+        secure: false,
       },
       '/ClinicalServices': {
-        target: 'http://localhost:5000',
+        target: 'https://localhost',
         changeOrigin: true,
+        secure: false,
       },
       '/ResultsAuthority': {
-        target: 'http://localhost:5000',
+        target: 'https://localhost',
         changeOrigin: true,
+        secure: false,
       },
     },
   },

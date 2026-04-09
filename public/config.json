@@ -1,12 +1,12 @@
 {
-  "targetHostname": "http://localhost:5000",
+  "targetHostname": "https://localhost",
   "apiBasePath": "/ResultsAuthority",
   "serviceEndpoints": {
     "infrastructure": "/InfrastructureServices",
     "clinical": "/ClinicalServices",
     "resultsAuthority": "/ResultsAuthority"
   },
-  "adapterType": "isyntax",
-  "authEnabled": false,
+  "adapterType": "ispacs",
+  "authEnabled": true,
   "logLevel": "info"
 }
