@@ -5,24 +5,18 @@ import type { IStudyService } from '../interfaces/IStudyService';
 import type { IImagingService } from '../interfaces/IImagingService';
 import type { IPersistenceService } from '../interfaces/IPersistenceService';
 import type { ServiceEndpoints } from '../../transport/endpoints/ServiceEndpoints';
-import type { WorklistQuery, WorklistEntry } from '../IPACSAdapter';
+// WorklistQuery, WorklistEntry now used only in ISPACSWorklistService
 import type { Study } from '../../core/domain/Study';
 import type { DicomImageMetadata } from '../../core/types/dicom';
 import type { DecodedImage, ProgressCallback } from '../../core/types/imaging';
 import type { Annotation } from '../../core/domain/Annotation';
 import { ISPACSAuthService } from './ISPACSAuthService';
+import { ISPACSWorklistService } from './ISPACSWorklistService';
 import { Logger } from '../../core/logging/Logger';
 
 const LOG_CAT = 'ISPACSProvider';
 
-// ─── Worklist (stub — will be wired to ClinicalServices in Phase 2) ──
-
-class ISPACSWorklistService implements IWorklistService {
-  async examSearch(_query: WorklistQuery): Promise<WorklistEntry[]> {
-    Logger.info(LOG_CAT, 'examSearch(): worklist not yet wired for ISPACS');
-    return [];
-  }
-}
+// ISPACSWorklistService is now a real implementation in ./ISPACSWorklistService.ts
 
 // ─── Study (stub — will be wired to ResultsAuthority in Phase 2) ────
 
@@ -75,16 +69,23 @@ class ISPACSPersistenceService implements IPersistenceService {
 
 // ─── Provider ───────────────────────────────────────────────────────
 
+// Module-level reference so worklist can share the auth service's
+// transport (HMAC) and discovered service map.
+let _sharedAuthService: ISPACSAuthService | null = null;
+
 export const ISPACSProvider: BackendProvider = {
   name: 'ispacs',
 
   createAuthService(endpoints: ServiceEndpoints): IAuthService {
-    // Auth service connects to /InfrastructureServices
-    return new ISPACSAuthService(endpoints.infrastructure);
+    _sharedAuthService = new ISPACSAuthService(endpoints.infrastructure);
+    return _sharedAuthService;
   },
 
   createWorklistService(_endpoints: ServiceEndpoints): IWorklistService {
-    return new ISPACSWorklistService();
+    if (!_sharedAuthService) {
+      throw new Error('ISPACSProvider: createAuthService() must be called before createWorklistService()');
+    }
+    return new ISPACSWorklistService(_sharedAuthService);
   },
 
   createStudyService(_endpoints: ServiceEndpoints): IStudyService {

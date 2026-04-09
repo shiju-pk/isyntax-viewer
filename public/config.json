@@ -6,7 +6,7 @@
     "clinical": "/ClinicalServices",
     "resultsAuthority": "/ResultsAuthority"
   },
-  "adapterType": "mock",
-  "authEnabled": true,
+  "adapterType": "isyntax",
+  "authEnabled": false,
   "logLevel": "info"
 }

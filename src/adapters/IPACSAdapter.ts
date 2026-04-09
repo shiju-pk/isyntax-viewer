@@ -40,6 +40,12 @@ export interface WorklistEntry {
   studyDescription?: string;
   studyUIDs: string[];
   stackId?: string;
+  // Extended fields (populated by ISPACS worklist)
+  imageCount?: number;
+  bodyPart?: string;
+  examStatus?: string;
+  referringProvider?: string;
+  patientKey?: string;
 }
 
 // ─── Adapter Interface ───────────────────────────────────────
