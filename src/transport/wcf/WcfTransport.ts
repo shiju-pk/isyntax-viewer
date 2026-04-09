@@ -92,6 +92,9 @@ export class WcfTransport {
       }
     }
 
+    // eslint-disable-next-line no-console
+    console.log(`[WcfTransport] postAbsolute(${absolutePath}) hmacEnabled=${this._hmacSigner.isEnabled} hasAuth=${'Authorization' in headers}`);
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this._requestTimeout);
 
