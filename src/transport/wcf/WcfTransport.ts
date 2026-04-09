@@ -32,15 +32,11 @@ export class WcfTransport {
       'Cache-Control': 'no-cache',
     };
 
-    // Add HMAC signature if enabled
+    // Add Authorization header (HMAC-based) if enabled
     if (this._hmacSigner.isEnabled) {
-      const signature = await this._hmacSigner.sign(xmlBody);
-      if (signature) {
-        headers['X-HMAC-Signature'] = signature;
-      }
-      const ticket = this._hmacSigner.getTicket();
-      if (ticket) {
-        headers['X-Session-Ticket'] = ticket;
+      const authHeader = await this._hmacSigner.buildAuthorizationHeader();
+      if (authHeader) {
+        headers['Authorization'] = authHeader;
       }
     }
 
@@ -90,13 +86,9 @@ export class WcfTransport {
     };
 
     if (this._hmacSigner.isEnabled) {
-      const signature = await this._hmacSigner.sign(xmlBody);
-      if (signature) {
-        headers['X-HMAC-Signature'] = signature;
-      }
-      const ticket = this._hmacSigner.getTicket();
-      if (ticket) {
-        headers['X-Session-Ticket'] = ticket;
+      const authHeader = await this._hmacSigner.buildAuthorizationHeader();
+      if (authHeader) {
+        headers['Authorization'] = authHeader;
       }
     }
 
@@ -145,9 +137,9 @@ export class WcfTransport {
     };
 
     if (this._hmacSigner.isEnabled) {
-      const ticket = this._hmacSigner.getTicket();
-      if (ticket) {
-        headers['X-Session-Ticket'] = ticket;
+      const authHeader = await this._hmacSigner.buildAuthorizationHeader();
+      if (authHeader) {
+        headers['Authorization'] = authHeader;
       }
     }
 

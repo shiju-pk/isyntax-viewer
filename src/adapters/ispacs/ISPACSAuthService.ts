@@ -310,8 +310,8 @@ export class ISPACSAuthService implements IAuthService {
 
     // Initialize HMAC if secret key is provided
     if (hmacSecretKey && ticket) {
-      this._hmacSigner.enable(hmacSecretKey, ticket);
-      Logger.info(LOG_CAT, `HMAC enabled (latency=${latencyMs.toFixed(0)}ms)`);
+      this._hmacSigner.enable(hmacSecretKey, ticket, serverTimestamp, latencyMs);
+      Logger.info(LOG_CAT, `HMAC enabled (latency=${latencyMs.toFixed(0)}ms, serverTimestamp=${serverTimestamp})`);
     }
 
     // Populate security context
