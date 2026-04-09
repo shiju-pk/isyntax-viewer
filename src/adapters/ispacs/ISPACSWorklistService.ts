@@ -97,6 +97,8 @@ export class ISPACSWorklistService implements IWorklistService {
     });
 
     Logger.info(LOG_CAT, `examSearch(): ${filters.length} filters, maxResults=${maxResults}`);
+    // eslint-disable-next-line no-console
+    console.log('[ISPACSWorklistService] examSearch request XML >>>', requestXml);
 
     const responseXml = await this._authService.transport.postAbsolute(servicePath, requestXml);
     return this._parseExamResponse(responseXml);
@@ -114,6 +116,8 @@ export class ISPACSWorklistService implements IWorklistService {
     });
 
     Logger.info(LOG_CAT, `patientSearch(): ${filters.length} filters, maxResults=${maxResults}`);
+    // eslint-disable-next-line no-console
+    console.log('[ISPACSWorklistService] patientSearch request XML >>>', requestXml);
 
     const responseXml = await this._authService.transport.postAbsolute(servicePath, requestXml);
     return this._parseExamResponse(responseXml);
@@ -155,6 +159,8 @@ export class ISPACSWorklistService implements IWorklistService {
     });
 
     Logger.info(LOG_CAT, `quickSearch("${trimmed}"): ${filters.length} filters`);
+    // eslint-disable-next-line no-console
+    console.log('[ISPACSWorklistService] quickSearch request XML >>>', requestXml);
 
     const responseXml = await this._authService.transport.postAbsolute(servicePath, requestXml);
     return this._parseExamResponse(responseXml);
