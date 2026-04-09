@@ -56,6 +56,11 @@ export class CompositeAdapter implements IPACSAdapter {
     return this._auth;
   }
 
+  /** Direct access to the underlying worklist service for quickSearch/patientSearch. */
+  get worklistService(): IWorklistService {
+    return this._worklist;
+  }
+
   // ─── Capabilities ────────────────────────────────────────────
 
   getCapabilities(): CapabilitySet {

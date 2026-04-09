@@ -110,9 +110,13 @@ export class ISPACSAuthService implements IAuthService {
       Logger.info(LOG_CAT, `Service element: name=${JSON.stringify(name)}, absolutePath=${JSON.stringify(absolutePath)}, xml=${svcEl.outerHTML?.substring(0, 300)}`);
       if (!name || !absolutePath) continue;
 
+      // Normalise: strip scheme+host so paths are always relative (e.g. /ClinicalServices/...)
+      // This ensures requests go through the Vite proxy in dev mode.
+      const normalisedPath = this._normaliseToRelativePath(absolutePath);
+
       const entry: ServiceMapEntry = {
         name,
-        absolutePath,
+        absolutePath: normalisedPath,
         scheme: WcfXmlParser.getText(svcEl, 'Scheme') ?? svcEl.getAttribute('Scheme') ?? undefined,
         type: WcfXmlParser.getText(svcEl, 'Type') ?? svcEl.getAttribute('Type') ?? undefined,
         isAnonymous:
@@ -140,6 +144,24 @@ export class ISPACSAuthService implements IAuthService {
       // Fallback: path relative to _infrastructureBase
       this._authServicePath = '/AuthenticationService/AuthenticationService.ashx';
       Logger.warn(LOG_CAT, `AuthenticationService not found in discovery response — falling back to ${this._authServicePath}`);
+    }
+  }
+
+  /**
+   * Normalise a URL or path to a relative path (starting with /).
+   * Discovery may return full URLs like https://localhost/ClinicalServices/...
+   * which must become /ClinicalServices/... for the Vite proxy.
+   */
+  private _normaliseToRelativePath(urlOrPath: string): string {
+    // Already a relative path
+    if (urlOrPath.startsWith('/')) return urlOrPath;
+    // Full URL — extract the pathname
+    try {
+      const parsed = new URL(urlOrPath);
+      return parsed.pathname;
+    } catch {
+      // Not a valid URL — return as-is
+      return urlOrPath;
     }
   }
 

@@ -98,7 +98,7 @@ export class ISPACSWorklistService implements IWorklistService {
 
     Logger.info(LOG_CAT, `examSearch(): ${filters.length} filters, maxResults=${maxResults}`);
 
-    const responseXml = await this._authService.transport.post(servicePath, requestXml);
+    const responseXml = await this._authService.transport.postAbsolute(servicePath, requestXml);
     return this._parseExamResponse(responseXml);
   }
 
@@ -115,7 +115,7 @@ export class ISPACSWorklistService implements IWorklistService {
 
     Logger.info(LOG_CAT, `patientSearch(): ${filters.length} filters, maxResults=${maxResults}`);
 
-    const responseXml = await this._authService.transport.post(servicePath, requestXml);
+    const responseXml = await this._authService.transport.postAbsolute(servicePath, requestXml);
     return this._parseExamResponse(responseXml);
   }
 
@@ -156,7 +156,7 @@ export class ISPACSWorklistService implements IWorklistService {
 
     Logger.info(LOG_CAT, `quickSearch("${trimmed}"): ${filters.length} filters`);
 
-    const responseXml = await this._authService.transport.post(servicePath, requestXml);
+    const responseXml = await this._authService.transport.postAbsolute(servicePath, requestXml);
     return this._parseExamResponse(responseXml);
   }
 
@@ -310,7 +310,17 @@ export class ISPACSWorklistService implements IWorklistService {
    */
   private _resolveWorklistPath(): string {
     const serviceMap = this._authService.serviceMap;
-    const entry = serviceMap.get(WORKLIST_SERVICE_NAME);
+    // Try exact name first, then case-insensitive fallback
+    let entry = serviceMap.get(WORKLIST_SERVICE_NAME);
+    if (!entry) {
+      // Search case-insensitively for any service containing 'worklist'
+      for (const [key, val] of serviceMap) {
+        if (key.toLowerCase().includes('worklist')) {
+          entry = val;
+          break;
+        }
+      }
+    }
 
     if (!entry) {
       throw new Error(
@@ -318,6 +328,7 @@ export class ISPACSWorklistService implements IWorklistService {
       );
     }
 
+    Logger.info(LOG_CAT, `Resolved worklist path: ${entry.absolutePath}`);
     return entry.absolutePath;
   }
 
