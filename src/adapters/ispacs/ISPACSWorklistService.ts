@@ -209,6 +209,16 @@ export class ISPACSWorklistService implements IWorklistService {
       if (query.dateRange.to) {
         filters.push({ column: EXAM_ATTRS.EndExamDateTime, value: query.dateRange.to });
       }
+    } else {
+      // Default: last 20 years → today (matches legacy ISPACS default behavior)
+      const now = new Date();
+      const from = new Date(now);
+      from.setFullYear(from.getFullYear() - 20);
+      from.setHours(0, 0, 0, 0);
+      const to = new Date(now);
+      to.setHours(23, 59, 59, 0);
+      filters.push({ column: EXAM_ATTRS.BeginExamDateTime, value: from.toISOString() });
+      filters.push({ column: EXAM_ATTRS.EndExamDateTime, value: to.toISOString() });
     }
 
     return filters;
