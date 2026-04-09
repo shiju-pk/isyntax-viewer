@@ -24,9 +24,9 @@ export class WcfMessageBuilder {
     culture?: string;
   }): string {
     const source = params.authSource ?? 'ISITE';
-    const appName = params.appName ?? 'iSyntaxViewer';
-    const appVersion = params.appVersion ?? '1.0';
-    const culture = params.culture ?? 'en-US';
+    const appName = params.appName ?? 'iSiteEnterprise';
+    const appVersion = params.appVersion ?? '4.4.550.0';
+    const culture = params.culture ?? '1033';
 
     const inner =
       `<Login>` +

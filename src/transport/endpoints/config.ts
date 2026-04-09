@@ -1,13 +1,12 @@
-import { getEffectiveTargetHostname } from '../../services/config/PreferencesService';
 import { getConfig } from '../../core/config/ConfigProvider';
 
 function getApiBaseUrl(): string {
   try {
     const cfg = getConfig();
-    return `${cfg.targetHostname}${cfg.apiBasePath}`;
+    return cfg.apiBasePath;
   } catch {
     // Fallback if config not yet loaded (backward compat)
-    return `${getEffectiveTargetHostname()}/ResultsAuthority`;
+    return '/ResultsAuthority';
   }
 }
 
