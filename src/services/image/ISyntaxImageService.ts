@@ -245,7 +245,9 @@ export class ISyntaxImageService {
       } catch (workerErr) {
         console.warn(`Worker decode failed for level ${level}, falling back to main thread:`, workerErr);
         // Buffer is detached after transfer — re-fetch for main-thread fallback
-        const refetchResponse = await fetch(url);
+        const refetchResponse = await authenticatedFetch(url, {
+          headers: { 'Accept': 'application/vnd.philips.pii.studyauthority.isyntaxcoeff.v1,application/octet-stream' },
+        });
         if (!refetchResponse.ok) throw workerErr;
         const refetchBuffer = await refetchResponse.arrayBuffer();
         decoded = this._decodeCoefficientMainThread(new Uint8Array(refetchBuffer), level);
