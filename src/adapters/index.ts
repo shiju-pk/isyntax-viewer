@@ -4,6 +4,7 @@ export type {
   AuthResult,
   WorklistQuery,
   WorklistEntry,
+  ExamStudyInfo,
 } from './IPACSAdapter';
 export { ISyntaxPACSAdapter } from './isyntax/ISyntaxPACSAdapter';
 export { MockPACSAdapter } from './mock/MockPACSAdapter';

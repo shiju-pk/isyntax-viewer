@@ -106,6 +106,17 @@ export class WcfMessageBuilder {
   }
 
   /**
+   * Build an ExamStudies request to resolve an ExamKey into StudyUid + StudyStackUid.
+   */
+  static buildExamStudiesRequest(examKey: string): string {
+    const inner =
+      `<DataRequest><QueryType>ExamStudies</QueryType>` +
+      `<QueryFilter ColumnName="ExamKey" ColumnValue="${WcfMessageBuilder.escapeXml(examKey)}"></QueryFilter>` +
+      `</DataRequest>`;
+    return WcfMessageBuilder.wrap(inner);
+  }
+
+  /**
    * Escape XML special characters in a string value.
    */
   static escapeXml(str: string): string {

@@ -1,5 +1,5 @@
 import type { IWorklistService } from '../interfaces/IWorklistService';
-import type { WorklistQuery, WorklistEntry } from '../IPACSAdapter';
+import type { WorklistQuery, WorklistEntry, ExamStudyInfo } from '../IPACSAdapter';
 import type { ISPACSAuthService } from './ISPACSAuthService';
 import { WcfMessageBuilder } from '../../transport/wcf/WcfMessageBuilder';
 import { WcfXmlParser } from '../../transport/wcf/WcfXmlParser';
@@ -164,6 +164,49 @@ export class ISPACSWorklistService implements IWorklistService {
 
     const responseXml = await this._authService.transport.postAbsolute(servicePath, requestXml);
     return this._parseExamResponse(responseXml);
+  }
+
+  // ─── ExamStudies (resolve ExamKey → StudyUid + StudyStackUid) ─
+
+  async getExamStudies(examKey: string): Promise<ExamStudyInfo[]> {
+    const servicePath = this._resolveWorklistPath();
+    const requestXml = WcfMessageBuilder.buildExamStudiesRequest(examKey);
+
+    Logger.info(LOG_CAT, `getExamStudies(${examKey})`);
+    // eslint-disable-next-line no-console
+    console.log('[ISPACSWorklistService] getExamStudies request XML >>>', requestXml);
+
+    const responseXml = await this._authService.transport.postAbsolute(servicePath, requestXml);
+    // eslint-disable-next-line no-console
+    console.log('[ISPACSWorklistService] getExamStudies response XML >>>', responseXml);
+
+    return this._parseExamStudiesResponse(responseXml, examKey);
+  }
+
+  private _parseExamStudiesResponse(xml: string, examKey: string): ExamStudyInfo[] {
+    const doc = WcfXmlParser.parse(xml);
+    const rows = WcfXmlParser.findAll(doc, 'row');
+    Logger.info(LOG_CAT, `ExamStudies response: ${rows.length} study rows for examKey=${examKey}`);
+
+    const results: ExamStudyInfo[] = [];
+    for (const row of rows) {
+      const studyUid = row.getAttribute('StudyUid') ?? '';
+      const studyStackUid = row.getAttribute('StudyStackUid') ?? '';
+      if (!studyUid || !studyStackUid) continue;
+
+      results.push({
+        examKey: row.getAttribute('ExamKey') ?? examKey,
+        studyKey: row.getAttribute('StudyKey') ?? '',
+        studyUid,
+        studyStackUid,
+        studyDateTime: row.getAttribute('StudyDateTime') ?? '',
+        imageCount: parseInt(row.getAttribute('ImageCount') ?? '0', 10) || 0,
+        studyHost: row.getAttribute('StudyHost') ?? undefined,
+        studyUrl: row.getAttribute('StudyUrl') ?? undefined,
+      });
+    }
+
+    return results;
   }
 
   // ─── Filter Builders ─────────────────────────────────────────

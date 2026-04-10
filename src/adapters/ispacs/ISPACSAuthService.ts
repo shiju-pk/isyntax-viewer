@@ -7,6 +7,7 @@ import { WcfXmlParser } from '../../transport/wcf/WcfXmlParser';
 import { HmacSigner } from '../../transport/wcf/HmacSigner';
 import { SecurityContextStore } from '../../core/security/SecurityContext';
 import { Logger } from '../../core/logging/Logger';
+import { setHmacSigner, clearHmacSigner } from '../../transport/authenticatedFetch';
 
 const LOG_CAT = 'ISPACSAuthService';
 
@@ -311,6 +312,7 @@ export class ISPACSAuthService implements IAuthService {
     // Initialize HMAC if secret key is provided
     if (hmacSecretKey && ticket) {
       this._hmacSigner.enable(hmacSecretKey, ticket, serverTimestamp, latencyMs);
+      setHmacSigner(this._hmacSigner);
       Logger.info(LOG_CAT, `HMAC enabled (latency=${latencyMs.toFixed(0)}ms, serverTimestamp=${serverTimestamp})`);
     }
 
@@ -348,6 +350,7 @@ export class ISPACSAuthService implements IAuthService {
       }
     }
     this._hmacSigner.disable();
+    clearHmacSigner();
     this._securityCtx.clear();
   }
 

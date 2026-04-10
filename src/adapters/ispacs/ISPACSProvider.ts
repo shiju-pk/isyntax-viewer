@@ -5,48 +5,85 @@ import type { IStudyService } from '../interfaces/IStudyService';
 import type { IImagingService } from '../interfaces/IImagingService';
 import type { IPersistenceService } from '../interfaces/IPersistenceService';
 import type { ServiceEndpoints } from '../../transport/endpoints/ServiceEndpoints';
-// WorklistQuery, WorklistEntry now used only in ISPACSWorklistService
 import type { Study } from '../../core/domain/Study';
 import type { DicomImageMetadata } from '../../core/types/dicom';
 import type { DecodedImage, ProgressCallback } from '../../core/types/imaging';
 import type { Annotation } from '../../core/domain/Annotation';
 import { ISPACSAuthService } from './ISPACSAuthService';
 import { ISPACSWorklistService } from './ISPACSWorklistService';
+import { ISyntaxImageService } from '../../services/image/ISyntaxImageService';
+import {
+  getStudyInfoAndImageIds,
+  getAllImageMetadata,
+  getSeriesImageGroups,
+} from '../../services/study/StudyService';
+import { normalizeStudy } from '../isyntax/ISyntaxNormalizer';
 import { Logger } from '../../core/logging/Logger';
 
 const LOG_CAT = 'ISPACSProvider';
 
 // ISPACSWorklistService is now a real implementation in ./ISPACSWorklistService.ts
 
-// ─── Study (stub — will be wired to ResultsAuthority in Phase 2) ────
+// ─── Study (delegates to ResultsAuthority StudyService) ────
 
 class ISPACSStudyService implements IStudyService {
-  async loadStudy(_studyUID: string, _stackId: string): Promise<Study> {
-    throw new Error('ISPACSStudyService.loadStudy() not yet implemented');
+  private _studyCache = new Map<string, Study>();
+
+  async loadStudy(studyUID: string, stackId: string): Promise<Study> {
+    const key = `${studyUID}:${stackId}`;
+    const cached = this._studyCache.get(key);
+    if (cached) return cached;
+
+    Logger.info(LOG_CAT, `ISPACSStudyService.loadStudy(${studyUID}, ${stackId})`);
+    const { studyInfo, imageIds } = await getStudyInfoAndImageIds(studyUID, stackId);
+    const metadata = await getAllImageMetadata(studyUID, stackId);
+    const seriesGroups = await getSeriesImageGroups(studyUID, stackId, imageIds);
+    const study = normalizeStudy(studyInfo, stackId, seriesGroups, metadata);
+    this._studyCache.set(key, study);
+    Logger.info(LOG_CAT, `loadStudy complete: ${study.series.length} series, ${imageIds.length} images`);
+    return study;
   }
 
-  async getStudyMetadata(_studyUID: string, _stackId: string): Promise<Map<string, DicomImageMetadata>> {
-    throw new Error('ISPACSStudyService.getStudyMetadata() not yet implemented');
+  async getStudyMetadata(studyUID: string, stackId: string): Promise<Map<string, DicomImageMetadata>> {
+    return getAllImageMetadata(studyUID, stackId);
   }
 }
 
-// ─── Imaging (stub — will be wired to ResultsAuthority in Phase 2) ──
+// ─── Imaging (delegates to ISyntaxImageService for ResultsAuthority) ──
 
 class ISPACSImagingService implements IImagingService {
-  async initImage(_studyUID: string, _instanceUID: string, _stackId: string): Promise<DecodedImage> {
-    throw new Error('ISPACSImagingService.initImage() not yet implemented');
+  private _imageServices = new Map<string, ISyntaxImageService>();
+
+  private _getOrCreate(studyUID: string, instanceUID: string, stackId: string): ISyntaxImageService {
+    const key = `${studyUID}:${instanceUID}:${stackId}`;
+    let svc = this._imageServices.get(key);
+    if (!svc) {
+      svc = new ISyntaxImageService(studyUID, instanceUID, stackId);
+      this._imageServices.set(key, svc);
+    }
+    return svc;
   }
 
-  async loadImageLevel(_studyUID: string, _instanceUID: string, _stackId: string, _level: number): Promise<DecodedImage> {
-    throw new Error('ISPACSImagingService.loadImageLevel() not yet implemented');
+  async initImage(studyUID: string, instanceUID: string, stackId: string): Promise<DecodedImage> {
+    const svc = this._getOrCreate(studyUID, instanceUID, stackId);
+    return svc.initImage();
   }
 
-  async loadAllLevels(_studyUID: string, _instanceUID: string, _stackId: string, _onProgress?: ProgressCallback): Promise<DecodedImage> {
-    throw new Error('ISPACSImagingService.loadAllLevels() not yet implemented');
+  async loadImageLevel(studyUID: string, instanceUID: string, stackId: string, level: number): Promise<DecodedImage> {
+    const svc = this._getOrCreate(studyUID, instanceUID, stackId);
+    return svc.loadLevel(level);
+  }
+
+  async loadAllLevels(studyUID: string, instanceUID: string, stackId: string, onProgress?: ProgressCallback): Promise<DecodedImage> {
+    const svc = this._getOrCreate(studyUID, instanceUID, stackId);
+    return svc.loadAllLevels(onProgress);
   }
 
   dispose(): void {
-    // no-op
+    for (const svc of this._imageServices.values()) {
+      svc.dispose();
+    }
+    this._imageServices.clear();
   }
 }
 

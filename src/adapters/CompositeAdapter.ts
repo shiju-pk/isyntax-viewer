@@ -1,4 +1,4 @@
-import type { IPACSAdapter, AuthCredentials, AuthResult, WorklistQuery, WorklistEntry } from './IPACSAdapter';
+import type { IPACSAdapter, AuthCredentials, AuthResult, WorklistQuery, WorklistEntry, ExamStudyInfo } from './IPACSAdapter';
 import type { IAuthService } from './interfaces/IAuthService';
 import type { IWorklistService } from './interfaces/IWorklistService';
 import type { IStudyService } from './interfaces/IStudyService';
@@ -85,6 +85,13 @@ export class CompositeAdapter implements IPACSAdapter {
 
   async queryWorklist(query: WorklistQuery): Promise<WorklistEntry[]> {
     return this._worklist.examSearch(query);
+  }
+
+  async getExamStudies(examKey: string): Promise<ExamStudyInfo[]> {
+    if (!this._worklist.getExamStudies) {
+      throw new Error('getExamStudies not supported by this worklist service');
+    }
+    return this._worklist.getExamStudies(examKey);
   }
 
   // ─── Study loading (delegates to IStudyService) ───────────────

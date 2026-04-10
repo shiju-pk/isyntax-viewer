@@ -7,6 +7,7 @@ import { ServerResponse, ResponseType } from '../../parsers/isyntax/ServerRespon
 import { InitImageResponseParser } from '../../parsers/isyntax/InitImageResponseParser';
 import type { ZoomLevelView } from '../../imaging/model/ZoomLevelView';
 import { getInitImageUrl, getCoefficientsUrl } from '../../transport/endpoints/config';
+import { authenticatedFetch } from '../../transport/authenticatedFetch';
 import { DecodeWorkerPool } from '../../workers/DecodeWorkerPool';
 import type { DecodeResult } from '../../workers/DecodeWorkerPool';
 import { imageCache } from '../../cache/ImageCache';
@@ -143,7 +144,7 @@ export class ISyntaxImageService {
     // Fetch through priority request pool (Interaction priority = user-visible)
     const { promise: arrayBuffer } = requestPool.addRequest<ArrayBuffer>(
       async (signal) => {
-        const response = await fetch(url, { signal });
+        const response = await authenticatedFetch(url, { signal });
         if (!response.ok) {
           throw new Error(`Failed to fetch InitImage: ${response.status} ${response.statusText}`);
         }
@@ -221,7 +222,7 @@ export class ISyntaxImageService {
     // Coefficient fetches at Prefetch priority (progressive refinement)
     const { promise: arrayBuffer } = requestPool.addRequest<ArrayBuffer>(
       async (signal) => {
-        const response = await fetch(url, { signal });
+        const response = await authenticatedFetch(url, { signal });
         if (!response.ok) {
           throw new Error(`Failed to fetch coefficients for level ${level}: ${response.status}`);
         }

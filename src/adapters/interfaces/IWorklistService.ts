@@ -1,4 +1,4 @@
-import type { WorklistQuery, WorklistEntry } from '../IPACSAdapter';
+import type { WorklistQuery, WorklistEntry, ExamStudyInfo } from '../IPACSAdapter';
 
 /**
  * Worklist service interface.
@@ -8,4 +8,5 @@ export interface IWorklistService {
   examSearch(query: WorklistQuery): Promise<WorklistEntry[]>;
   patientSearch?(query: WorklistQuery): Promise<WorklistEntry[]>;
   quickSearch?(searchString: string, maxResults?: number): Promise<WorklistEntry[]>;
+  getExamStudies?(examKey: string): Promise<ExamStudyInfo[]>;
 }

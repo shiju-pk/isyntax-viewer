@@ -48,6 +48,17 @@ export interface WorklistEntry {
   patientKey?: string;
 }
 
+export interface ExamStudyInfo {
+  examKey: string;
+  studyKey: string;
+  studyUid: string;
+  studyStackUid: string;
+  studyDateTime: string;
+  imageCount: number;
+  studyHost?: string;
+  studyUrl?: string;
+}
+
 // ─── Adapter Interface ───────────────────────────────────────
 
 /**

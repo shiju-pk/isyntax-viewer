@@ -16,6 +16,7 @@ import {
 } from '../../services/study/StudyService';
 import { normalizeStudy } from './ISyntaxNormalizer';
 import { getPresentationStateUrl } from '../../transport/endpoints/config';
+import { authenticatedFetch } from '../../transport/authenticatedFetch';
 
 const LOG_CAT = 'ISyntaxPACSAdapter';
 
@@ -206,7 +207,7 @@ export class ISyntaxPACSAdapter implements IPACSAdapter {
     Logger.info(LOG_CAT, `loadPresentationState(${studyUID}, ${psName})`);
 
     try {
-      const response = await fetch(url);
+      const response = await authenticatedFetch(url);
       if (!response.ok) {
         Logger.warn(LOG_CAT, `PS fetch failed: ${response.status} ${response.statusText}`);
         return null;

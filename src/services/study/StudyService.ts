@@ -1,4 +1,5 @@
 import { getStudyDocUrl } from '../../transport/endpoints/config';
+import { authenticatedFetch } from '../../transport/authenticatedFetch';
 import { parseStudyDoc } from '../../parsers/studydoc/StudyDocParser';
 import type { DicomImageMetadata, StudyInfo, StudyDoc, SeriesGroup } from '../../core/types';
 import {
@@ -40,7 +41,7 @@ export async function fetchStudyDoc(
   if (cached) return cached;
 
   const url = getStudyDocUrl(studyUID, stackId);
-  const response = await fetch(url);
+  const response = await authenticatedFetch(url);
   if (!response.ok) {
     throw new Error(
       `Failed to fetch StudyDoc: ${response.status} ${response.statusText}`

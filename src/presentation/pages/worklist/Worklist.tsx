@@ -14,6 +14,7 @@ export default function Worklist() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchText, setSearchText] = useState('');
+  const [loadingExamKey, setLoadingExamKey] = useState<string | null>(null);
   const navigate = useNavigate();
   const { adapter, config } = usePACS();
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -80,13 +81,41 @@ export default function Worklist() {
     fetchWorklist(searchText);
   };
 
-  const handleRowClick = (entry: WorklistEntry) => {
-    // Navigate to viewer with the exam key as study ID
-    const studyId = entry.studyUIDs[0] ?? entry.examKey;
-    navigate(`/view/${encodeURIComponent(studyId)}`, {
-      state: { studyId, examKey: entry.examKey },
-    });
-  };
+  const handleRowClick = useCallback(
+    async (entry: WorklistEntry) => {
+      if (loadingExamKey) return; // Prevent double-click
+
+      // For ISPACS: resolve ExamKey → StudyUid + StudyStackUid via ExamStudies query
+      if (adapter instanceof CompositeAdapter && adapter.worklistService.getExamStudies) {
+        setLoadingExamKey(entry.examKey);
+        setError(null);
+        try {
+          const studies = await adapter.getExamStudies(entry.examKey);
+          if (studies.length === 0) {
+            setError(`No studies found for exam ${entry.examKey}`);
+            return;
+          }
+          const study = studies[0];
+          navigate(`/view/${encodeURIComponent(study.studyUid)}?sid=${encodeURIComponent(study.studyStackUid)}`, {
+            state: { studyId: study.studyUid, stackId: study.studyStackUid, examKey: entry.examKey },
+          });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          setError(`Failed to load exam: ${msg}`);
+        } finally {
+          setLoadingExamKey(null);
+        }
+        return;
+      }
+
+      // Non-ISPACS: navigate directly with studyUID
+      const studyId = entry.studyUIDs[0] ?? entry.examKey;
+      navigate(`/view/${encodeURIComponent(studyId)}`, {
+        state: { studyId, examKey: entry.examKey },
+      });
+    },
+    [adapter, navigate, loadingExamKey],
+  );
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -167,7 +196,9 @@ export default function Worklist() {
                     </td>
                   </tr>
                 )}
-                {entries.map((entry, index) => (
+                {entries.map((entry, index) => {
+                  const isResolving = loadingExamKey === entry.examKey;
+                  return (
                   <tr
                     key={`${entry.examKey}-${index}`}
                     onClick={() => handleRowClick(entry)}
@@ -179,9 +210,20 @@ export default function Worklist() {
                     }}
                     tabIndex={0}
                     role="button"
-                    className="border-t border-gray-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset hover:bg-gray-800/40 cursor-pointer"
+                    className={`border-t border-gray-800 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset ${
+                      isResolving ? 'bg-blue-900/20 cursor-wait' : 'hover:bg-gray-800/40 cursor-pointer'
+                    }`}
                   >
-                    <td className="px-4 py-3 text-gray-200">{entry.patientName || '—'}</td>
+                    <td className="px-4 py-3 text-gray-200">
+                      {isResolving ? (
+                        <span className="flex items-center gap-2">
+                          <Loader2 size={14} className="animate-spin text-blue-400" />
+                          <span>{entry.patientName || 'Loading...'}</span>
+                        </span>
+                      ) : (
+                        entry.patientName || '—'
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-gray-400">{entry.patientId || '—'}</td>
                     <td className="px-4 py-3 text-gray-400 font-mono text-xs">{entry.accessionNumber || '—'}</td>
                     <td className="px-4 py-3 text-gray-400 text-xs">{entry.studyDescription || '—'}</td>
@@ -195,7 +237,8 @@ export default function Worklist() {
                     <td className="px-4 py-3 text-gray-400 text-xs">{entry.studyDate || '—'}</td>
                     <td className="px-4 py-3 text-gray-400">{entry.imageCount ?? '—'}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
             {loading && entries.length > 0 && (
