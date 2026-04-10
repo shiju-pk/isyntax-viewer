@@ -222,7 +222,10 @@ export class ISyntaxImageService {
     // Coefficient fetches at Prefetch priority (progressive refinement)
     const { promise: arrayBuffer } = requestPool.addRequest<ArrayBuffer>(
       async (signal) => {
-        const response = await authenticatedFetch(url, { signal });
+        const response = await authenticatedFetch(url, {
+          signal,
+          headers: { 'Accept': 'application/vnd.philips.pii.studyauthority.isyntaxcoeff.v1,application/octet-stream' },
+        });
         if (!response.ok) {
           throw new Error(`Failed to fetch coefficients for level ${level}: ${response.status}`);
         }
