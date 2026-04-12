@@ -71,6 +71,9 @@ async function handleMessage(
     state.processor = new ISyntaxProcessor(state.image);
     state.totalLevels = iir.xformLevels;
 
+    // eslint-disable-next-line no-console
+    console.log(`[Worker] initImage: imageKey=${imageKey}, format=${iir.format}, xformLevels=${iir.xformLevels}, rows=${iir.rows}, cols=${iir.cols}, isJPEG=${fmt.isJPEGFormat(iir.format)}`);
+
     if (fmt.isJPEGFormat(iir.format)) {
       // ---- JPEG / J2K async path ----
       // ProcessInitImageResponse sets up the image model
@@ -129,8 +132,14 @@ async function handleMessage(
     const state = processorMap.get(imageKey);
     if (!state) throw new Error(`No processor state for imageKey "${imageKey}". Call initImage first.`);
 
+    // eslint-disable-next-line no-console
+    console.log(`[Worker] coefficients: imageKey=${imageKey}, level=${level}, totalLevels=${state.totalLevels}, bufferSize=${uint8Array.byteLength}`);
+
     const serverResponse = new ServerResponse(ResponseType.GetCoefficients, level, uint8Array);
     const zlv = state.processor.ComputeZoomLevelView(serverResponse, level);
+
+    // eslint-disable-next-line no-console
+    console.log(`[Worker] after ComputeZoomLevelView: pixelLevel=${zlv.pixelLevel}, hasLL=${zlv.hasFullLevelLL()}, hasHigh=${zlv.hasFullLevelHighCoefficients()}, hasFullLevel=${zlv.hasFullLevel()}`);
 
     const llData = zlv.getFullLevelLL();
     if (!llData) throw new Error(`No decoded data for level ${level}`);

@@ -49,6 +49,7 @@ export class ISyntaxImageService {
   private _cachedResult: DecodedImage | null = null;
   private _dicomMetadata: DicomImageMetadata | null = null;
   private _qualityStatus: ImageQualityStatus = ImageQualityStatus.NONE;
+  private _loadAllPromise: Promise<DecodedImage> | null = null;
 
   /** Cached raw pixel range (min/max) for efficient rewindowing */
   private _cachedRawMin: number | undefined;
@@ -284,6 +285,20 @@ export class ISyntaxImageService {
       return this._cachedResult;
     }
 
+    // Guard against concurrent calls — return the in-flight promise
+    if (this._loadAllPromise) {
+      return this._loadAllPromise;
+    }
+
+    this._loadAllPromise = this._doLoadAllLevels(onProgress);
+    try {
+      return await this._loadAllPromise;
+    } finally {
+      this._loadAllPromise = null;
+    }
+  }
+
+  private async _doLoadAllLevels(onProgress?: ProgressCallback): Promise<DecodedImage> {
     let result: DecodedImage | null = null;
 
     for (let level = this._totalLevels; level > 0; level--) {
