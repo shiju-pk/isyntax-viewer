@@ -8,6 +8,7 @@ import {
   extractImageUIDsFromImagesXml,
   getImageSeriesUIDs,
   extractGSPSAttributeMaps,
+  extractGSPSInstanceMaps,
 } from '../../dicom/metadata/DicomMetadata';
 import { parseGSPSInstance } from '../../gsps-engine/GSPSParser';
 import { buildApplicationResult } from '../../gsps-engine/GraphicAnnotationProcessor';
@@ -217,18 +218,92 @@ export async function getSeriesImageGroups(
  * Extract and parse GSPS data from the study document.
  * Returns the processed GSPS application result (annotations, VOI, spatial transforms)
  * or null if no GSPS is present.
+ *
+ * Tries the full template+idelta merge path first. Falls back to template-only
+ * extraction if no _images.xml documents are available. Processes ALL GSPS
+ * instances found and merges their results.
  */
 export async function getGSPSData(
   studyUID: string,
   stackId: string,
 ): Promise<GSPSApplicationResult | null> {
   const doc = await fetchStudyDoc(studyUID, stackId);
-  if (!doc.studyXml) return null;
+  if (!doc.studyXml) {
+    console.debug('[GSPS] No studyXml available for', studyUID);
+    return null;
+  }
 
-  const attributeMaps = extractGSPSAttributeMaps(doc.studyXml);
-  if (attributeMaps.length === 0) return null;
+  // Primary path: merge template + ideltas from _images.xml
+  const imageXmlList = doc.imageXmlList.length > 0
+    ? doc.imageXmlList
+    : doc.imagesXml ? [doc.imagesXml] : [];
 
-  // Parse the first (best) GSPS instance
-  const parsed = parseGSPSInstance(attributeMaps[0]);
-  return buildApplicationResult(parsed);
+  let attributeMaps: Record<string, unknown>[];
+
+  if (imageXmlList.length > 0) {
+    attributeMaps = extractGSPSInstanceMaps(doc.studyXml, imageXmlList);
+    console.debug('[GSPS] extractGSPSInstanceMaps returned', attributeMaps.length, 'maps');
+  } else {
+    // Fallback: template-only extraction
+    attributeMaps = extractGSPSAttributeMaps(doc.studyXml);
+    console.debug('[GSPS] Fallback to template-only, found', attributeMaps.length, 'maps');
+  }
+
+  if (attributeMaps.length === 0) {
+    console.debug('[GSPS] No GSPS attribute maps found for', studyUID);
+    return null;
+  }
+
+  // Process all GSPS instances and merge results
+  let mergedResult: GSPSApplicationResult | null = null;
+
+  for (let i = 0; i < attributeMaps.length; i++) {
+    const parsed = parseGSPSInstance(attributeMaps[i]);
+    console.debug(`[GSPS] Parsed instance ${i}:`,
+      'annotations:', parsed.graphicAnnotations.length,
+      'voiTransforms:', parsed.voiTransforms.length,
+      'shutters:', parsed.shutters.length,
+      'spatial:', !!parsed.spatialTransform,
+      'lutShape:', parsed.presentationLutShape,
+      'refSeries:', parsed.referencedSeries.length,
+    );
+
+    const result = buildApplicationResult(parsed);
+
+    if (!mergedResult) {
+      mergedResult = result;
+    } else {
+      // Merge annotations from subsequent instances
+      for (const [uid, entries] of result.annotationsByImage) {
+        const existing = mergedResult.annotationsByImage.get(uid) ?? [];
+        existing.push(...entries);
+        mergedResult.annotationsByImage.set(uid, existing);
+      }
+      // Use first non-null VOI, spatial, shutters, presentationLutShape
+      if (!mergedResult.voiTransform && result.voiTransform) {
+        mergedResult.voiTransform = result.voiTransform;
+      }
+      if (!mergedResult.spatialTransform && result.spatialTransform) {
+        mergedResult.spatialTransform = result.spatialTransform;
+      }
+      if (mergedResult.shutters.length === 0 && result.shutters.length > 0) {
+        mergedResult.shutters = result.shutters;
+      }
+      if (!mergedResult.presentationLutShape && result.presentationLutShape) {
+        mergedResult.presentationLutShape = result.presentationLutShape;
+      }
+    }
+  }
+
+  if (mergedResult) {
+    console.debug('[GSPS] Final merged result:',
+      'annotationsByImage size:', mergedResult.annotationsByImage.size,
+      'voiTransform:', mergedResult.voiTransform,
+      'shutters:', mergedResult.shutters.length,
+      'spatial:', !!mergedResult.spatialTransform,
+      'lutShape:', mergedResult.presentationLutShape,
+    );
+  }
+
+  return mergedResult;
 }

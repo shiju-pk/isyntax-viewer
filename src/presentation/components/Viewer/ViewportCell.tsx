@@ -146,6 +146,7 @@ export default function ViewportCell({
     if (rewindowed) {
       gspsVOIAppliedRef.current = true;
       setCurrentImage(rewindowed);
+      console.info('[GSPS] Applied VOI transform: WC=%d WW=%d', voi.windowCenter, voi.windowWidth);
     }
   }, [gspsResult, currentImage]);
 
@@ -179,11 +180,26 @@ export default function ViewportCell({
     const handleFit = () => {
       controllerRef.current?.fitToWindow();
     };
+    const handleFlipH = () => {
+      controllerRef.current?.flipHorizontal();
+    };
+    const handleFlipV = () => {
+      controllerRef.current?.flipVertical();
+    };
+    const handleRotate90 = () => {
+      controllerRef.current?.rotateRight90();
+    };
     eventBus.on(RenderingEvents.VIEWPORT_RESET, handleReset);
     eventBus.on(RenderingEvents.VIEWPORT_FIT, handleFit);
+    eventBus.on(RenderingEvents.FLIP_HORIZONTAL, handleFlipH);
+    eventBus.on(RenderingEvents.FLIP_VERTICAL, handleFlipV);
+    eventBus.on(RenderingEvents.ROTATE_RIGHT_90, handleRotate90);
     return () => {
       eventBus.off(RenderingEvents.VIEWPORT_RESET, handleReset);
       eventBus.off(RenderingEvents.VIEWPORT_FIT, handleFit);
+      eventBus.off(RenderingEvents.FLIP_HORIZONTAL, handleFlipH);
+      eventBus.off(RenderingEvents.FLIP_VERTICAL, handleFlipV);
+      eventBus.off(RenderingEvents.ROTATE_RIGHT_90, handleRotate90);
     };
   }, [currentInstanceUID, metadataMap]);
 

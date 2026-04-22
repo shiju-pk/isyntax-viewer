@@ -127,36 +127,7 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Auth Source dropdown — only visible for ISPACS with discovered sources */}
-            {isISPACS && authSources.length > 0 && (
-              <div>
-                <label
-                  htmlFor="authSource"
-                  className="block text-xs font-medium text-gray-400 mb-1.5"
-                >
-                  <Server size={12} className="inline mr-1" />
-                  Log On To
-                </label>
-                <div className="relative">
-                  <select
-                    id="authSource"
-                    value={authSource}
-                    onChange={(e) => setAuthSource(e.target.value)}
-                    className="w-full appearance-none rounded-lg border border-gray-700 bg-gray-800 px-3.5 py-2.5 pr-8 text-sm text-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors"
-                  >
-                    {authSources.map((src) => (
-                      <option key={src.name} value={src.name}>
-                        {src.displayName}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    size={14}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
-                  />
-                </div>
-              </div>
-            )}
+            
 
             <div>
               <label
@@ -196,6 +167,36 @@ export default function LoginPage() {
                 className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3.5 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors disabled:opacity-50"
               />
             </div>
+            {/* Auth Source dropdown — only visible for ISPACS with discovered sources */}
+            {isISPACS && authSources.length > 0 && (
+              <div>
+                <label
+                  htmlFor="authSource"
+                  className="block text-xs font-medium text-gray-400 mb-1.5"
+                >
+                  <Server size={12} className="inline mr-1" />
+                  Log On To
+                </label>
+                <div className="relative">
+                  <select
+                    id="authSource"
+                    value={authSource}
+                    onChange={(e) => setAuthSource(e.target.value)}
+                    className="w-full appearance-none rounded-lg border border-gray-700 bg-gray-800 px-3.5 py-2.5 pr-8 text-sm text-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors"
+                  >
+                    {authSources.map((src) => (
+                      <option key={src.name} value={src.name}>
+                        {src.displayName}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={14}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+                  />
+                </div>
+              </div>
+            )}
 
             {error && (
               <div className="rounded-lg bg-red-900/30 border border-red-800/50 px-3.5 py-2.5 text-sm text-red-300">

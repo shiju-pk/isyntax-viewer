@@ -83,9 +83,15 @@ export default function ViewerPage() {
     setLayout(newLayout);
   }, []);
 
-  const handleFlipHorizontal = useCallback(() => {}, []);
-  const handleFlipVertical = useCallback(() => {}, []);
-  const handleRotateRight90 = useCallback(() => {}, []);
+  const handleFlipHorizontal = useCallback(() => {
+    eventBus.emit(RenderingEvents.FLIP_HORIZONTAL, {});
+  }, []);
+  const handleFlipVertical = useCallback(() => {
+    eventBus.emit(RenderingEvents.FLIP_VERTICAL, {});
+  }, []);
+  const handleRotateRight90 = useCallback(() => {
+    eventBus.emit(RenderingEvents.ROTATE_RIGHT_90, {});
+  }, []);
 
   // --- Image traversal helpers ---
   const currentSeriesImageCount = seriesGroups[selectedSeriesIndex]?.imageIds.length ?? 0;

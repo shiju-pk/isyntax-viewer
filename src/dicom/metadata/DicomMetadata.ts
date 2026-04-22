@@ -544,6 +544,157 @@ export function extractGSPSAttributeMaps(
 }
 
 /**
+ * Identify GSPS series UIDs from _study.xml.
+ * Returns a map of seriesUID → template attribute map for each GSPS series.
+ */
+function identifyGSPSSeries(
+  studyXml: Document,
+): Map<string, Record<string, unknown>> {
+  const gspsSeriesMap = new Map<string, Record<string, unknown>>();
+  const seriesElements = studyXml.getElementsByTagName('series');
+
+  for (let i = 0; i < seriesElements.length; i++) {
+    const seriesEl = seriesElements[i];
+    const seriesUID = seriesEl.getAttribute('name') || '';
+    const templates = seriesEl.getElementsByTagName('template');
+    if (templates.length === 0) continue;
+
+    const templateEl = templates[0];
+    const sopClassUID = getSOPClassUIDFromTemplate(templateEl);
+    if (sopClassUID !== GSPS_SOP_CLASS_UID) continue;
+
+    const attrs = templateElementToAttributeMap(templateEl);
+    gspsSeriesMap.set(seriesUID, attrs);
+    console.debug('[GSPS] Found GSPS series in _study.xml:', seriesUID,
+      'template keys:', Object.keys(attrs).length);
+  }
+
+  return gspsSeriesMap;
+}
+
+/**
+ * Convert an <idelta> element into a flat attribute map, handling
+ * <element>, <diff>, <sqElement>, <binary>, and <binDiff> children.
+ * Operations: op="+" adds, op="*" modifies, op="-" removes (returned as null).
+ */
+function ideltaElementToAttributeMap(
+  idelta: Element,
+): Record<string, unknown> {
+  const attrs: Record<string, unknown> = {};
+
+  for (let i = 0; i < idelta.children.length; i++) {
+    const child = idelta.children[i];
+    const tag = child.getAttribute('tag');
+    if (!tag) continue;
+
+    const tagLower = tag.toLowerCase();
+    const op = child.getAttribute('op');
+
+    // op="-" means delete — store null sentinel so we can remove from template
+    if (op === '-') {
+      attrs[tagLower] = null;
+      continue;
+    }
+
+    if (child.tagName === 'element' || child.tagName === 'diff') {
+      const val = extractElementValue(child);
+      if (val !== null) {
+        attrs[tagLower] = val;
+      }
+    } else if (child.tagName === 'binary' || child.tagName === 'binDiff') {
+      const val = child.getAttribute('val') || child.textContent || '';
+      attrs[tagLower] = val;
+    } else if (child.tagName === 'sqElement') {
+      const items: Record<string, unknown>[] = [];
+      for (let j = 0; j < child.children.length; j++) {
+        const valChild = child.children[j];
+        if (valChild.tagName.startsWith('val')) {
+          items.push(templateElementToAttributeMap(valChild));
+        }
+      }
+      attrs[tagLower] = items;
+    }
+  }
+
+  return attrs;
+}
+
+/**
+ * Merge idelta attributes on top of a template attribute map.
+ * A null value in overrides means the tag was deleted (op="-").
+ */
+function mergeAttributes(
+  template: Record<string, unknown>,
+  overrides: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged = { ...template };
+  for (const [key, value] of Object.entries(overrides)) {
+    if (value === null) {
+      delete merged[key];
+    } else {
+      merged[key] = value;
+    }
+  }
+  return merged;
+}
+
+/**
+ * Extract GSPS instance attribute maps by merging _study.xml templates
+ * with per-instance ideltas from _images.xml.
+ *
+ * Returns one attribute map per GSPS instance (template + idelta merged).
+ * If no ideltas are found for a GSPS series, the template alone is returned.
+ *
+ * @param studyXml  Parsed _study.xml document.
+ * @param imageXmlList  Array of parsed _images.xml documents.
+ * @returns Array of flat attribute maps suitable for `parseGSPSInstance()`.
+ */
+export function extractGSPSInstanceMaps(
+  studyXml: Document,
+  imageXmlList: Document[],
+): Record<string, unknown>[] {
+  const gspsSeriesMap = identifyGSPSSeries(studyXml);
+  if (gspsSeriesMap.size === 0) {
+    console.debug('[GSPS] No GSPS series found in _study.xml');
+    return [];
+  }
+
+  const result: Record<string, unknown>[] = [];
+  const seriesWithIdeltas = new Set<string>();
+
+  // Scan all _images.xml documents for ideltas belonging to GSPS series
+  for (const imagesXml of imageXmlList) {
+    const ideltas = imagesXml.getElementsByTagName('idelta');
+    for (let i = 0; i < ideltas.length; i++) {
+      const idelta = ideltas[i];
+      const parentSeries = idelta.getAttribute('parent') || '';
+      const templateAttrs = gspsSeriesMap.get(parentSeries);
+      if (!templateAttrs) continue;
+
+      seriesWithIdeltas.add(parentSeries);
+      const overrides = ideltaElementToAttributeMap(idelta);
+      const merged = mergeAttributes(templateAttrs, overrides);
+      result.push(merged);
+
+      console.debug('[GSPS] Merged idelta for series:', parentSeries,
+        'override keys:', Object.keys(overrides).length,
+        'merged keys:', Object.keys(merged).length);
+    }
+  }
+
+  // For GSPS series with NO ideltas, include the template as-is
+  for (const [seriesUID, templateAttrs] of gspsSeriesMap) {
+    if (!seriesWithIdeltas.has(seriesUID)) {
+      result.push(templateAttrs);
+      console.debug('[GSPS] Using template-only for series (no ideltas):', seriesUID);
+    }
+  }
+
+  console.debug('[GSPS] Total GSPS instance maps extracted:', result.length);
+  return result;
+}
+
+/**
  * Convert a <template> element (with <element>, <sqElement>, <binary> children)
  * into a flat attribute map suitable for GSPSParser.
  */

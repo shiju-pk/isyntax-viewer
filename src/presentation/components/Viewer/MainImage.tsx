@@ -123,6 +123,13 @@ const SEGMENTATION_MODES: Set<InteractionMode> = new Set([
 ]);
 
 /**
+ * Normalize a UID string for comparison — trim whitespace, strip trailing dots/NULs.
+ */
+function normalizeUID(uid: string): string {
+  return uid.trim().replace(/[\.\0]+$/, '');
+}
+
+/**
  * Convert GSPS annotation entries into framework Annotations and add to the manager.
  * Matches annotations to the current image by checking referenced image UIDs.
  */
@@ -131,24 +138,42 @@ function addGSPSAnnotations(
   currentImageId: string,
   viewportId: string,
 ): void {
-  // Try to find annotations for this image by matching UID suffix
-  // (GSPS references full SOP Instance UIDs; our imageIds may differ in format)
+  const normalizedCurrent = normalizeUID(currentImageId);
   let entries: GSPSAnnotationEntry[] | undefined;
 
+  // 1. Exact match after normalization
   for (const [uid, e] of annotationsByImage) {
-    if (uid === currentImageId || currentImageId.includes(uid) || uid.includes(currentImageId)) {
+    const normalizedRef = normalizeUID(uid);
+    if (normalizedRef === normalizedCurrent) {
       entries = e;
       break;
     }
   }
 
-  // If no exact match, apply annotations from the first (only) referenced image
-  // when there's just one entry — common for single-image GSPS
-  if (!entries && annotationsByImage.size === 1) {
-    entries = annotationsByImage.values().next().value;
+  // 2. Substring match (GSPS may use full SOP Instance UID, viewer may use partial)
+  if (!entries) {
+    for (const [uid, e] of annotationsByImage) {
+      const normalizedRef = normalizeUID(uid);
+      if (normalizedCurrent.includes(normalizedRef) || normalizedRef.includes(normalizedCurrent)) {
+        entries = e;
+        break;
+      }
+    }
   }
 
-  if (!entries || entries.length === 0) return;
+  // 3. Single-entry fallback — common for single-image GSPS
+  if (!entries && annotationsByImage.size === 1) {
+    entries = annotationsByImage.values().next().value;
+    console.debug('[GSPS] No UID match, using single-entry fallback for annotations');
+  }
+
+  if (!entries || entries.length === 0) {
+    console.debug('[GSPS] No annotation entries matched for imageId:', currentImageId,
+      'available UIDs:', [...annotationsByImage.keys()]);
+    return;
+  }
+
+  console.debug('[GSPS] Adding', entries.length, 'annotations for image:', currentImageId);
 
   for (const entry of entries) {
     if (!entry || !entry.toolName || !Array.isArray(entry.points)) continue;
@@ -422,49 +447,85 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady,
     }
   }, [overlayGroup]);
 
-  // Apply GSPS features: annotations, spatial transform, invert, shutters
+  // Apply GSPS features: annotations, spatial transform, invert, shutters.
+  // Fires when gspsResult or imageId change. Defers until imageData is available
+  // via a short retry so we don't add imageData to dependencies (which changes
+  // frequently during progressive loading and could cause unnecessary re-runs).
   useEffect(() => {
-    if (!gspsResult || !engineRef.current || gspsAppliedRef.current) return;
-    const viewport = engineRef.current.getViewport(VIEWPORT_ID);
-    if (!viewport) return;
+    if (!gspsResult || gspsAppliedRef.current) return;
 
-    gspsAppliedRef.current = true;
+    const tryApply = () => {
+      if (gspsAppliedRef.current) return;
+      if (!engineRef.current) return;
+      const viewport = engineRef.current.getViewport(VIEWPORT_ID);
+      if (!viewport) return;
 
-    try {
-      // 1. Presentation LUT Shape (INVERSE → invert)
-      if (gspsResult.presentationLutShape === 'INVERSE') {
-        viewport.setProperties({ invert: true });
-      }
+      gspsAppliedRef.current = true;
 
-      // 2. Spatial transform (rotation, flip)
-      const spatial = gspsResult.spatialTransform;
-      if (spatial) {
-        const camera = viewport.getCamera();
-        if (spatial.imageHorizontalFlip) {
-          camera.flipHorizontal();
+      const appliedFeatures: string[] = [];
+
+      try {
+        // 1. Presentation LUT Shape (INVERSE → invert)
+        if (gspsResult.presentationLutShape === 'INVERSE') {
+          viewport.setProperties({ invert: true });
+          appliedFeatures.push(`LUT:${gspsResult.presentationLutShape}`);
         }
-        if (spatial.imageRotation) {
-          camera.rotate(spatial.imageRotation);
+
+        // 2. Spatial transform (rotation, flip)
+        const spatial = gspsResult.spatialTransform;
+        if (spatial) {
+          const camera = viewport.getCamera();
+          if (spatial.imageHorizontalFlip) {
+            camera.flipHorizontal();
+            appliedFeatures.push('flipH');
+          }
+          if (spatial.imageRotation) {
+            camera.rotate(spatial.imageRotation);
+            appliedFeatures.push(`rotate:${spatial.imageRotation}`);
+          }
         }
-      }
 
-      // 3. Display shutters
-      if (gspsResult.shutters && gspsResult.shutters.length > 0 && shutterStageRef.current) {
-        shutterStageRef.current.setShutters(gspsResult.shutters);
-      }
+        // 3. Display shutters
+        if (gspsResult.shutters && gspsResult.shutters.length > 0 && shutterStageRef.current) {
+          shutterStageRef.current.setShutters(gspsResult.shutters);
+          appliedFeatures.push(`shutters:${gspsResult.shutters.length}`);
+        }
 
-      // 4. Graphic/Text annotations — feed into annotationManager
-      const currentImgId = imageIdRef.current;
-      if (currentImgId && gspsResult.annotationsByImage && gspsResult.annotationsByImage.size > 0) {
-        addGSPSAnnotations(gspsResult.annotationsByImage, currentImgId, VIEWPORT_ID);
-      }
+        // 4. Graphic/Text annotations — feed into annotationManager
+        const currentImgId = imageIdRef.current;
+        if (currentImgId && gspsResult.annotationsByImage && gspsResult.annotationsByImage.size > 0) {
+          addGSPSAnnotations(gspsResult.annotationsByImage, currentImgId, VIEWPORT_ID);
+          appliedFeatures.push(`annotations:${gspsResult.annotationsByImage.size}images`);
+        }
 
-      // Trigger re-render to apply all changes
-      engineRef.current.renderViewport(VIEWPORT_ID);
-    } catch (err) {
-      console.error('[MainImage] Failed to apply GSPS result:', err);
+        // Summary log
+        if (appliedFeatures.length > 0) {
+          console.info('[GSPS] Applied:', appliedFeatures.join(', '));
+        } else {
+          console.warn('[GSPS] gspsResult is non-null but no features were applied.',
+            'annotationsByImage:', gspsResult.annotationsByImage.size,
+            'voiTransform:', gspsResult.voiTransform,
+            'shutters:', gspsResult.shutters.length,
+            'spatial:', gspsResult.spatialTransform,
+            'lutShape:', gspsResult.presentationLutShape,
+          );
+        }
+
+        // Trigger re-render to apply all changes
+        engineRef.current.renderViewport(VIEWPORT_ID);
+      } catch (err) {
+        console.error('[MainImage] Failed to apply GSPS result:', err);
+      }
+    };
+
+    // If viewport not yet initialized, defer with a short retry
+    if (!engineRef.current?.getViewport(VIEWPORT_ID)) {
+      const timer = setTimeout(tryApply, 200);
+      return () => clearTimeout(timer);
     }
-  }, [gspsResult]);
+
+    tryApply();
+  }, [gspsResult, imageId]);
 
   // Reset GSPS applied flag when switching images
   useEffect(() => {

@@ -105,9 +105,39 @@ export class Camera2D {
       imageWidth,
       imageHeight
     );
-    const cx = t.offsetX + worldX * Math.abs(t.scaleX);
-    const cy = t.offsetY + worldY * Math.abs(t.scaleY);
-    return [cx, cy];
+    const absScaleX = Math.abs(t.scaleX);
+    const absScaleY = Math.abs(t.scaleY);
+    const drawW = imageWidth * absScaleX;
+    const drawH = imageHeight * absScaleY;
+
+    // 1. Position within the drawn image rect (before flip)
+    let px = t.offsetX + worldX * absScaleX;
+    let py = t.offsetY + worldY * absScaleY;
+
+    // 2. Apply flip — mirror around image center, matching Canvas2DBackend
+    if (t.scaleX < 0) {
+      const imgCenterX = t.offsetX + drawW / 2;
+      px = 2 * imgCenterX - px;
+    }
+    if (t.scaleY < 0) {
+      const imgCenterY = t.offsetY + drawH / 2;
+      py = 2 * imgCenterY - py;
+    }
+
+    // 3. Apply rotation around canvas center
+    if (t.rotation !== 0) {
+      const cx = canvasWidth / 2;
+      const cy = canvasHeight / 2;
+      const rad = (t.rotation * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const dx = px - cx;
+      const dy = py - cy;
+      px = cx + dx * cos - dy * sin;
+      py = cy + dx * sin + dy * cos;
+    }
+
+    return [px, py];
   }
 
   canvasToWorld(
@@ -124,8 +154,40 @@ export class Camera2D {
       imageWidth,
       imageHeight
     );
-    const wx = (canvasX - t.offsetX) / Math.abs(t.scaleX);
-    const wy = (canvasY - t.offsetY) / Math.abs(t.scaleY);
+    let px = canvasX;
+    let py = canvasY;
+
+    // 1. Undo rotation around canvas center
+    if (t.rotation !== 0) {
+      const cx = canvasWidth / 2;
+      const cy = canvasHeight / 2;
+      const rad = -(t.rotation * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const dx = px - cx;
+      const dy = py - cy;
+      px = cx + dx * cos - dy * sin;
+      py = cy + dx * sin + dy * cos;
+    }
+
+    const absScaleX = Math.abs(t.scaleX);
+    const absScaleY = Math.abs(t.scaleY);
+    const drawW = imageWidth * absScaleX;
+    const drawH = imageHeight * absScaleY;
+
+    // 2. Undo flip — mirror around image center
+    if (t.scaleX < 0) {
+      const imgCenterX = t.offsetX + drawW / 2;
+      px = 2 * imgCenterX - px;
+    }
+    if (t.scaleY < 0) {
+      const imgCenterY = t.offsetY + drawH / 2;
+      py = 2 * imgCenterY - py;
+    }
+
+    // 3. Undo scale + offset
+    const wx = (px - t.offsetX) / absScaleX;
+    const wy = (py - t.offsetY) / absScaleY;
     return [wx, wy];
   }
 }

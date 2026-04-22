@@ -121,6 +121,10 @@ export function parseGSPSInstance(
 ): ParsedGSPSInstance {
   const sopInstanceUID = getString(attributes, GSPS_TAGS.SOPInstanceUID) ?? '';
 
+  console.debug('[GSPSParser] Parsing instance:', sopInstanceUID || '(no SOP UID)',
+    'attribute count:', Object.keys(attributes).length,
+    'tags:', Object.keys(attributes).join(', '));
+
   // Parse referenced series
   const referencedSeries = parseReferencedSeries(attributes);
 
@@ -145,6 +149,17 @@ export function parseGSPSInstance(
   // Check for embedded iSitePS
   const embeddedISitePSXml = getString(attributes, GSPS_TAGS.iSiteEmbeddedPSData);
   const hasEmbeddedISitePS = !!embeddedISitePSXml;
+
+  console.debug('[GSPSParser] Parsed result:',
+    'refSeries:', referencedSeries.length,
+    'annotations:', graphicAnnotations.length,
+    'graphicLayers:', graphicLayers.length,
+    'voiTransforms:', voiTransforms.length,
+    'spatial:', !!spatialTransform,
+    'shutters:', shutters.length,
+    'lutShape:', presentationLutShape,
+    'embeddedISitePS:', hasEmbeddedISitePS,
+  );
 
   return {
     sopInstanceUID,
@@ -481,20 +496,28 @@ function getString(attrs: Record<string, unknown>, tag: string): string | null {
   const val = attrs[tag];
   if (val === undefined || val === null) return null;
   if (typeof val === 'string') return val;
+  // Handle string[] from multi-value extraction — use first element
+  if (Array.isArray(val) && val.length > 0) return String(val[0]);
   return String(val);
 }
 
 function getNumber(attrs: Record<string, unknown>, tag: string): number | null {
   const val = attrs[tag];
   if (val === undefined || val === null) return null;
-  const n = Number(val);
+  // Handle string[] from multi-value extraction — use first element
+  const raw = Array.isArray(val) ? val[0] : val;
+  const n = Number(raw);
   return Number.isFinite(n) ? n : null;
 }
 
 function getNumberArray(attrs: Record<string, unknown>, tag: string): number[] {
   const val = attrs[tag];
   if (!val) return [];
-  if (Array.isArray(val)) return val.map(Number).filter(Number.isFinite);
+  if (Array.isArray(val)) {
+    // Handle string[] from extractElementValue multi-value (nbE) attributes
+    // as well as number[] or mixed arrays
+    return val.map((v) => Number(v)).filter(Number.isFinite);
+  }
   if (typeof val === 'string') {
     return val.split('\\').map(Number).filter(Number.isFinite);
   }

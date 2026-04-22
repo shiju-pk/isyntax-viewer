@@ -11,6 +11,9 @@ export const RenderingEvents = {
   IMAGE_LOAD_PROGRESS: 'RENDERING:IMAGE_LOAD_PROGRESS',
   VIEWPORT_RESET: 'RENDERING:VIEWPORT_RESET',
   VIEWPORT_FIT: 'RENDERING:VIEWPORT_FIT',
+  FLIP_HORIZONTAL: 'RENDERING:FLIP_HORIZONTAL',
+  FLIP_VERTICAL: 'RENDERING:FLIP_VERTICAL',
+  ROTATE_RIGHT_90: 'RENDERING:ROTATE_RIGHT_90',
 } as const;
 
 export type RenderingEventType =
@@ -98,4 +101,7 @@ export type RenderingEventDetailMap = {
   [RenderingEvents.IMAGE_LOAD_PROGRESS]: ImageLoadProgressEventDetail;
   [RenderingEvents.VIEWPORT_RESET]: ViewportResetEventDetail;
   [RenderingEvents.VIEWPORT_FIT]: ViewportFitEventDetail;
+  [RenderingEvents.FLIP_HORIZONTAL]: Record<string, never>;
+  [RenderingEvents.FLIP_VERTICAL]: Record<string, never>;
+  [RenderingEvents.ROTATE_RIGHT_90]: Record<string, never>;
 };

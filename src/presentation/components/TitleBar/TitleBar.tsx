@@ -12,7 +12,7 @@ export default function TitleBar({ title, showBackButton = false, children }: Ti
   const navigate = useNavigate();
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2 bg-gray-900 border-b border-gray-800">
+    <div className="relative z-50 flex items-center gap-3 px-4 py-2 bg-gray-900 border-b border-gray-800">
       {showBackButton && (
         <button
           onClick={() => navigate(-1)}
