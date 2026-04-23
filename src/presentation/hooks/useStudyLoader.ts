@@ -101,10 +101,15 @@ export function useStudyLoader(studyId: string, stackId: string): StudyLoaderRes
   // Fetch GSPS presentation state data
   useEffect(() => {
     if (!studyId || !stackId) return;
+    console.info('[GSPS] useStudyLoader: fetching GSPS for', studyId, stackId);
     let cancelled = false;
     getGSPSData(studyId, stackId)
       .then((result) => {
-        if (!cancelled) setGspsResult(result);
+        if (!cancelled) {
+          console.info('[GSPS] useStudyLoader: received gspsResult, hasResult:', !!result,
+            result ? `annotations:${result.annotationsByImage.size} voi:${!!result.voiTransform}` : '');
+          setGspsResult(result);
+        }
       })
       .catch((err: unknown) => {
         console.warn('Failed to load GSPS data:', err);

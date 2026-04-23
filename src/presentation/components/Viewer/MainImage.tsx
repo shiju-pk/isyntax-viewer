@@ -217,6 +217,7 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady,
   const overlayStageRef = useRef<OverlayCompositorStage | null>(null);
   const shutterStageRef = useRef<DisplayShutterStage | null>(null);
   const gspsAppliedRef = useRef(false);
+  const gspsAppliedImageIdRef = useRef<string | undefined>(undefined);
   const imageIdRef = useRef<string>(imageId ?? '');
   const modeRef = useRef<InteractionMode>(mode);
   modeRef.current = mode;
@@ -452,6 +453,15 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady,
   // via a short retry so we don't add imageData to dependencies (which changes
   // frequently during progressive loading and could cause unnecessary re-runs).
   useEffect(() => {
+    // Keep imageIdRef in sync so renderOverlays queries the right key
+    imageIdRef.current = imageId ?? '';
+
+    // Reset the applied flag when imageId changes so GSPS re-applies per image
+    if (imageId !== gspsAppliedImageIdRef.current) {
+      gspsAppliedRef.current = false;
+      gspsAppliedImageIdRef.current = imageId;
+    }
+
     if (!gspsResult || gspsAppliedRef.current) return;
 
     const tryApply = () => {
@@ -492,7 +502,7 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady,
         }
 
         // 4. Graphic/Text annotations — feed into annotationManager
-        const currentImgId = imageIdRef.current;
+        const currentImgId = imageId ?? '';
         if (currentImgId && gspsResult.annotationsByImage && gspsResult.annotationsByImage.size > 0) {
           addGSPSAnnotations(gspsResult.annotationsByImage, currentImgId, VIEWPORT_ID);
           appliedFeatures.push(`annotations:${gspsResult.annotationsByImage.size}images`);
@@ -526,11 +536,6 @@ export default function MainImage({ imageData, mode, imageId, onControllerReady,
 
     tryApply();
   }, [gspsResult, imageId]);
-
-  // Reset GSPS applied flag when switching images
-  useEffect(() => {
-    gspsAppliedRef.current = false;
-  }, [imageId]);
 
   // Update imageId ref and viewport ref when the displayed image changes
   useEffect(() => {

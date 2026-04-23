@@ -229,7 +229,7 @@ export async function getGSPSData(
 ): Promise<GSPSApplicationResult | null> {
   const doc = await fetchStudyDoc(studyUID, stackId);
   if (!doc.studyXml) {
-    console.debug('[GSPS] No studyXml available for', studyUID);
+    console.warn('[GSPS] No studyXml available for', studyUID);
     return null;
   }
 
@@ -242,15 +242,15 @@ export async function getGSPSData(
 
   if (imageXmlList.length > 0) {
     attributeMaps = extractGSPSInstanceMaps(doc.studyXml, imageXmlList);
-    console.debug('[GSPS] extractGSPSInstanceMaps returned', attributeMaps.length, 'maps');
+    console.info('[GSPS] extractGSPSInstanceMaps returned', attributeMaps.length, 'maps');
   } else {
     // Fallback: template-only extraction
     attributeMaps = extractGSPSAttributeMaps(doc.studyXml);
-    console.debug('[GSPS] Fallback to template-only, found', attributeMaps.length, 'maps');
+    console.info('[GSPS] Fallback to template-only, found', attributeMaps.length, 'maps');
   }
 
   if (attributeMaps.length === 0) {
-    console.debug('[GSPS] No GSPS attribute maps found for', studyUID);
+    console.info('[GSPS] No GSPS attribute maps found for', studyUID);
     return null;
   }
 
@@ -259,7 +259,7 @@ export async function getGSPSData(
 
   for (let i = 0; i < attributeMaps.length; i++) {
     const parsed = parseGSPSInstance(attributeMaps[i]);
-    console.debug(`[GSPS] Parsed instance ${i}:`,
+    console.info(`[GSPS] Parsed instance ${i}:`,
       'annotations:', parsed.graphicAnnotations.length,
       'voiTransforms:', parsed.voiTransforms.length,
       'shutters:', parsed.shutters.length,
@@ -296,7 +296,7 @@ export async function getGSPSData(
   }
 
   if (mergedResult) {
-    console.debug('[GSPS] Final merged result:',
+    console.info('[GSPS] Final merged result:',
       'annotationsByImage size:', mergedResult.annotationsByImage.size,
       'voiTransform:', mergedResult.voiTransform,
       'shutters:', mergedResult.shutters.length,

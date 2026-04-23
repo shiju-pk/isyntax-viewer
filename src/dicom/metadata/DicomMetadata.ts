@@ -565,7 +565,7 @@ function identifyGSPSSeries(
 
     const attrs = templateElementToAttributeMap(templateEl);
     gspsSeriesMap.set(seriesUID, attrs);
-    console.debug('[GSPS] Found GSPS series in _study.xml:', seriesUID,
+    console.info('[GSPS] Found GSPS series in _study.xml:', seriesUID,
       'template keys:', Object.keys(attrs).length);
   }
 
@@ -653,9 +653,69 @@ export function extractGSPSInstanceMaps(
   studyXml: Document,
   imageXmlList: Document[],
 ): Record<string, unknown>[] {
+  // Diagnostic: dump series structure
+  const allSeries = studyXml.getElementsByTagName('series');
+  console.info('[GSPS] _study.xml has', allSeries.length, 'series');
+  for (let s = 0; s < allSeries.length; s++) {
+    const se = allSeries[s];
+    const uid = se.getAttribute('name') || '(no name)';
+    const templates = se.getElementsByTagName('template');
+    let sopClass = '(no template)';
+    if (templates.length > 0) {
+      sopClass = getSOPClassUIDFromTemplate(templates[0]) || '(no SOP)';
+    }
+    console.info(`[GSPS]   series[${s}]: uid=${uid}, sopClass=${sopClass}`);
+  }
+  // Also check for GSPS-like tags in _images.xml ideltas
+  for (let ix = 0; ix < imageXmlList.length; ix++) {
+    const ideltas = imageXmlList[ix].getElementsByTagName('idelta');
+    console.info(`[GSPS] _images.xml[${ix}] has`, ideltas.length, 'ideltas');
+    for (let id = 0; id < ideltas.length; id++) {
+      const idelta = ideltas[id];
+      const parent = idelta.getAttribute('parent') || '(no parent)';
+      // Check ALL tags from each idelta
+      const allTags: string[] = [];
+      const gspsTagsFound: string[] = [];
+      for (let c = 0; c < idelta.children.length; c++) {
+        const child = idelta.children[c];
+        const tag = child.getAttribute('tag') || '';
+        allTags.push(`${child.tagName}:${tag}`);
+        if (tag.startsWith('0070') || tag.startsWith('0073')) {
+          gspsTagsFound.push(tag);
+        }
+      }
+      console.info(`[GSPS]   idelta[${id}] parent=${parent} childCount=${idelta.children.length} tags:`, allTags.join(', '));
+      if (gspsTagsFound.length > 0) {
+        console.info(`[GSPS]   idelta[${id}] ** HAS GSPS TAGS **:`, gspsTagsFound);
+      }
+    }
+  }
+  // Check template content for each series
+  for (let s = 0; s < allSeries.length; s++) {
+    const se = allSeries[s];
+    const templates = se.getElementsByTagName('template');
+    if (templates.length > 0) {
+      const tmpl = templates[0];
+      const tmplTags: string[] = [];
+      for (let c = 0; c < tmpl.children.length; c++) {
+        const child = tmpl.children[c];
+        const tag = child.getAttribute('tag') || '';
+        tmplTags.push(`${child.tagName}:${tag}`);
+        // Dump 0073xxxx iSite PS tags in detail
+        if (tag.startsWith('0073')) {
+          const val = child.getAttribute('val') || child.textContent || '';
+          const tagName = child.tagName;
+          const truncated = val.length > 500 ? val.substring(0, 500) + '...' : val;
+          console.info(`[GSPS]   iSite PS tag ${tag} (${tagName}): "${truncated}"`);
+        }
+      }
+      console.info(`[GSPS]   series[${s}] template tags:`, tmplTags.join(', '));
+    }
+  }
+
   const gspsSeriesMap = identifyGSPSSeries(studyXml);
   if (gspsSeriesMap.size === 0) {
-    console.debug('[GSPS] No GSPS series found in _study.xml');
+    console.info('[GSPS] No GSPS series found in _study.xml');
     return [];
   }
 
@@ -676,7 +736,7 @@ export function extractGSPSInstanceMaps(
       const merged = mergeAttributes(templateAttrs, overrides);
       result.push(merged);
 
-      console.debug('[GSPS] Merged idelta for series:', parentSeries,
+      console.info('[GSPS] Merged idelta for series:', parentSeries,
         'override keys:', Object.keys(overrides).length,
         'merged keys:', Object.keys(merged).length);
     }
@@ -686,11 +746,11 @@ export function extractGSPSInstanceMaps(
   for (const [seriesUID, templateAttrs] of gspsSeriesMap) {
     if (!seriesWithIdeltas.has(seriesUID)) {
       result.push(templateAttrs);
-      console.debug('[GSPS] Using template-only for series (no ideltas):', seriesUID);
+      console.info('[GSPS] Using template-only for series (no ideltas):', seriesUID);
     }
   }
 
-  console.debug('[GSPS] Total GSPS instance maps extracted:', result.length);
+  console.info('[GSPS] Total GSPS instance maps extracted:', result.length);
   return result;
 }
 

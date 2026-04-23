@@ -92,6 +92,7 @@ export default function ViewportCell({
   const controllerRef = useRef<ICanvasController | null>(null);
   const serviceRef = useRef<ISyntaxImageService | null>(null);
   const gspsVOIAppliedRef = useRef(false);
+  const gspsVOIAppliedUIDRef = useRef('');
   const currentImageRef = useRef<ImageData | null>(null);
 
   // Derive instance UID from assignment
@@ -137,6 +138,12 @@ export default function ViewportCell({
 
   // Apply GSPS VOI transform
   useEffect(() => {
+    // Reset the applied flag when instance changes so GSPS VOI re-applies per image
+    if (currentInstanceUID !== gspsVOIAppliedUIDRef.current) {
+      gspsVOIAppliedRef.current = false;
+      gspsVOIAppliedUIDRef.current = currentInstanceUID;
+    }
+
     const voi = gspsResult?.voiTransform;
     if (!voi || !currentImage) return;
     if (gspsVOIAppliedRef.current) return;
@@ -148,12 +155,7 @@ export default function ViewportCell({
       setCurrentImage(rewindowed);
       console.info('[GSPS] Applied VOI transform: WC=%d WW=%d', voi.windowCenter, voi.windowWidth);
     }
-  }, [gspsResult, currentImage]);
-
-  // Reset GSPS flag on image change
-  useEffect(() => {
-    gspsVOIAppliedRef.current = false;
-  }, [currentInstanceUID]);
+  }, [gspsResult, currentImage, currentInstanceUID]);
 
   // Listen for WindowLevel tool VOI changes
   useEffect(() => {
